@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import omit from 'lodash/omit';
 
+import { omit } from '../../util/common';
 import { types as sdkTypes, createImageVariantConfig } from '../../util/sdkLoader';
 import { denormalisedResponseEntities } from '../../util/data';
 import {
@@ -742,7 +742,9 @@ const editListingPageSlice = createSlice({
       })
       // fetchAvailabilityExceptions cases
       .addCase(fetchAvailabilityExceptionsThunk.pending, (state, action) => {
-        const { monthId, weekStartId } = action.meta.arg.params;
+        const { isWeekly, start, timeZone } = action.meta.arg.params;
+        const weekStartId = isWeekly ? stringifyDateToISO8601(start) : null;
+        const monthId = !isWeekly ? monthIdString(start, timeZone) : null;
         const newData = { fetchExceptionsError: null, fetchExceptionsInProgress: true };
 
         if (monthId) {

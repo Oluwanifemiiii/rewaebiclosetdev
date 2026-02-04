@@ -1,6 +1,6 @@
-import pick from 'lodash/pick';
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 
+import { pick } from '../../util/common';
 import { types as sdkTypes, createImageVariantConfig } from '../../util/sdkLoader';
 import { initiatePrivileged, transitionPrivileged } from '../../util/api';
 import { denormalisedResponseEntities } from '../../util/data';
@@ -42,11 +42,19 @@ const getTransitionName = (transactionId, processAlias, state) => {
   const processName = resolveLatestProcessName(processAlias.split('/')[0]);
   const process = getProcess(processName);
   const transitions = process.transitions;
+  const txState = transaction?.attributes?.state;
+  const isProviderUpdateOffer = txState === `state/${process.states.OFFER_PENDING}`;
+  const isProviderUpdateFromUpdatePending = txState === `state/${process.states.UPDATE_PENDING}`;
+  const lastTransition = transaction?.attributes?.lastTransition;
   const transitionName =
-    transaction?.attributes?.lastTransition === transitions.INQUIRE
+    lastTransition === transitions.INQUIRE
       ? transitions.MAKE_OFFER_AFTER_INQUIRY
-      : transaction?.attributes?.lastTransition === transitions.REQUEST_QUOTE
+      : lastTransition === transitions.REQUEST_QUOTE
       ? transitions.MAKE_OFFER_FROM_REQUEST
+      : isProviderUpdateOffer
+      ? transitions.UPDATE_OFFER
+      : isProviderUpdateFromUpdatePending
+      ? transitions.UPDATE_FROM_UPDATE_PENDING
       : transitions.MAKE_OFFER;
 
   return transitionName;
@@ -161,10 +169,10 @@ const makeOfferPayloadCreator = (
   { negotiationParams, processAlias, transactionId, isPrivilegedTransition },
   { dispatch, getState, rejectWithValue, extra: sdk }
 ) => {
-  if (!processAlias) {
+  if (!transactionId && !processAlias && negotiationParams?.listingId?.uuid) {
     const error = new Error('No transaction process attached to listing');
     log.error(error, 'listing-process-missing', {
-      listingId: listing?.id?.uuid,
+      listingId: negotiationParams?.listingId?.uuid,
     });
     return rejectWithValue(storableError(error));
   }

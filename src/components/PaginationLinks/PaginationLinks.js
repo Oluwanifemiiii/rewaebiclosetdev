@@ -1,6 +1,5 @@
 import React from 'react';
 import classNames from 'classnames';
-import range from 'lodash/range';
 
 import { useIntl } from '../../util/reactIntl';
 import { propTypes } from '../../util/types';
@@ -24,7 +23,7 @@ const paginationGapKey = () => {
  */
 const getPageNumbersArray = (page, totalPages) => {
   // Create array of numbers: [1, 2, 3, 4, ..., totalPages]
-  const numbersFrom1ToTotalPages = range(1, totalPages + 1);
+  const numbersFrom1ToTotalPages = Array.from({ length: totalPages }, (_, i) => i + 1);
   return numbersFrom1ToTotalPages
     .filter(v => {
       // Filter numbers that are next to current page and pick also first and last page
@@ -88,6 +87,7 @@ export const PaginationLinks = props => {
       params={pagePathParams}
       to={{ search: stringify(prevSearchParams) }}
       title={intl.formatMessage({ id: 'PaginationLinks.previous' })}
+      ariaLabel={intl.formatMessage({ id: 'PaginationLinks.previous' })}
     >
       <IconArrowHead direction="left" size="big" rootClassName={css.arrowIcon} />
     </NamedLink>
@@ -111,6 +111,7 @@ export const PaginationLinks = props => {
       params={pagePathParams}
       to={{ search: stringify(nextSearchParams) }}
       title={intl.formatMessage({ id: 'PaginationLinks.next' })}
+      ariaLabel={intl.formatMessage({ id: 'PaginationLinks.next' })}
     >
       <IconArrowHead direction="right" size="big" rootClassName={css.arrowIcon} />
     </NamedLink>
@@ -139,6 +140,7 @@ export const PaginationLinks = props => {
         params={pagePathParams}
         to={{ search: stringify({ ...pageSearchParams, page: v }) }}
         title={intl.formatMessage({ id: 'PaginationLinks.toPage' }, { page: v })}
+        ariaLabel={intl.formatMessage({ id: 'PaginationLinks.toPage' }, { page: v })}
       >
         {v}
       </NamedLink>

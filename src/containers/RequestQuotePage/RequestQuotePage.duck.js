@@ -1,6 +1,6 @@
-import pick from 'lodash/pick';
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 
+import { pick } from '../../util/common';
 import { types as sdkTypes, createImageVariantConfig } from '../../util/sdkLoader';
 import { denormalisedResponseEntities } from '../../util/data';
 import { storableError } from '../../util/errors';
@@ -85,7 +85,7 @@ const requestQuotePayloadCreator = (
   if (!processAlias) {
     const error = new Error('No transaction process attached to listing');
     log.error(error, 'listing-process-missing', {
-      listingId: listing?.id?.uuid,
+      listingId: params?.listingId?.uuid,
     });
     return rejectWithValue(storableError(error));
   }
