@@ -941,8 +941,28 @@ const mapStateToProps = state => {
 
 const mapDispatchToProps = dispatch => {
   return {
-    onTransition: (txId, transitionName, params) =>
-      dispatch(makeTransition(txId, transitionName, params)),
+    onTransition: (txId, transitionName, params) => {
+      return dispatch(makeTransition(txId, transitionName, params)).then(result => {
+        // ✅ Transitions that should trigger a reload
+        const reloadTransitions = [
+          'transition/accept-deliverable',
+          'transition/accept-deliverable-paystack',
+          'transition/deliver',
+          'transition/confirm-payment',
+          'transition/confirm-payment-paystack',
+          'transition/accept', // ✅ Add this (booking accept for Stripe)
+          'transition/accept-paystack', // ✅ Add this (booking accept for Paystack)
+        ];
+
+        if (reloadTransitions.includes(transitionName)) {
+          setTimeout(() => {
+            window.location.reload();
+          }, 2000);
+        }
+
+        return result;
+      });
+    },
     onShowMoreMessages: (txId, config) => dispatch(fetchMoreMessages(txId, config)),
     onSendMessage: (txId, message, config) => dispatch(sendMessage(txId, message, config)),
     onManageDisableScrolling: (componentId, disableScrolling) =>
@@ -952,9 +972,9 @@ const mapDispatchToProps = dispatch => {
     callSetInitialValues: (setInitialValues, values) => dispatch(setInitialValues(values)),
     onInitializeCardPaymentData: () => dispatch(initializeCardPaymentData()),
     onFetchTransactionLineItems: (orderData, listingId, isOwnListing) =>
-      dispatch(fetchTransactionLineItems(orderData, listingId, isOwnListing)), // for OrderPanel
+      dispatch(fetchTransactionLineItems(orderData, listingId, isOwnListing)),
     onFetchTimeSlots: (listingId, start, end, timeZone, options) =>
-      dispatch(fetchTimeSlots(listingId, start, end, timeZone, options)), // for OrderPanel
+      dispatch(fetchTimeSlots(listingId, start, end, timeZone, options)),
   };
 };
 

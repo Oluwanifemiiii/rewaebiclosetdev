@@ -45,7 +45,7 @@ const renderer = require('./renderer');
 const dataLoader = require('./dataLoader');
 const { generateCSPNonce, csp } = require('./csp');
 const sdkUtils = require('./api-util/sdk');
-
+const cors = require('cors');
 const buildPath = path.resolve(__dirname, '..', 'build');
 const dev = process.env.REACT_APP_ENV === 'development';
 const PORT = parseInt(process.env.PORT, 10);
@@ -77,6 +77,17 @@ const checkEnvVariables = variables => {
 checkEnvVariables(MANDATORY_ENV_VARIABLES);
 
 const app = express();
+
+// ✅ ADD CORS CONFIGURATION HERE
+const cors = require('cors');
+
+// Configure CORS to accept credentials (cookies)
+app.use(cors({
+  origin: process.env.REACT_APP_MARKETPLACE_ROOT_URL || 'http://localhost:3000',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
 
 const errorPage500 = fs.readFileSync(path.join(buildPath, '500.html'), 'utf-8');
 const errorPage404 = fs.readFileSync(path.join(buildPath, '404.html'), 'utf-8');
@@ -181,6 +192,7 @@ app.get('/site.webmanifest', webmanifestResourceRoute);
 // We need to handle these endpoints separately so that they are accessible by Sharetribe backend
 // even if you have enabled basic authentication e.g. in staging environment.
 app.use('/.well-known', wellKnownRouter);
+
 
 // Use basic authentication when not in dev mode. This is
 // intentionally after the static middleware and /.well-known

@@ -26,7 +26,7 @@ const RESULT_PAGE_SIZE = 24;
 const resultIds = data => {
   const listings = data.data;
   return listings
-    .filter(l => !l.attributes.deleted && l.attributes.state === 'published')
+    .filter(l => !l.attributes.deleted)
     .map(l => l.id);
 };
 

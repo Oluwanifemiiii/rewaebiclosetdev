@@ -524,3 +524,23 @@
     margin-top: 16px;
   }
 }
+
+.bookingLocation {
+  margin: 24px 0;
+  padding: 16px;
+  background-color: var(--matterColorLight);
+  border-radius: 4px;
+}
+
+.sectionHeading {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+  color: var(--matterColorDark);
+}
+
+.address {
+  font-size: 14px;
+  margin: 0;
+  color: var(--matterColor);
+}

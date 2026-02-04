@@ -44,18 +44,25 @@ export const getStateDataForBookingProcess = (txInfo, processInfo) => {
     .cond([states.PREAUTHORIZED, CUSTOMER], () => {
       return { processName, processState, showDetailCardHeadings: true, showExtraInfo: true };
     })
-    .cond([states.PREAUTHORIZED, PROVIDER], () => {
-      const primary = isCustomerBanned ? null : actionButtonProps(transitions.ACCEPT, PROVIDER);
-      const secondary = isCustomerBanned ? null : actionButtonProps(transitions.DECLINE, PROVIDER);
-      return {
-        processName,
-        processState,
-        showDetailCardHeadings: true,
-        showActionButtons: true,
-        primaryButtonProps: primary,
-        secondaryButtonProps: secondary,
-      };
-    })
+  .cond([states.PREAUTHORIZED, PROVIDER], () => {
+  // ✅ Check if payment was made with Paystack
+  const isPaystackPayment = transaction?.attributes?.protectedData?.paystack === true;
+  const acceptTransition = isPaystackPayment 
+    ? transitions.ACCEPT_PAYSTACK 
+    : transitions.ACCEPT;
+  
+  const primary = isCustomerBanned ? null : actionButtonProps(acceptTransition, PROVIDER); // ✅ Use acceptTransition
+  const secondary = isCustomerBanned ? null : actionButtonProps(transitions.DECLINE, PROVIDER);
+  
+  return {
+    processName,
+    processState,
+    showDetailCardHeadings: true,
+    showActionButtons: true,
+    primaryButtonProps: primary,
+    secondaryButtonProps: secondary,
+  };
+})
     .cond([states.DELIVERED, _], () => {
       return {
         processName,

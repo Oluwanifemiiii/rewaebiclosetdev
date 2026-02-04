@@ -355,6 +355,9 @@ export const renderApp = (
     />
   );
 
+  console.log("Google Maps Key =", process.env.REACT_APP_GOOGLE_MAPS_API_KEY);
+
+
   // Let's keep react-dom/server out of the main code-chunk.
   return import('react-dom/server').then(mod => {
     const { default: ReactDOMServer } = mod;

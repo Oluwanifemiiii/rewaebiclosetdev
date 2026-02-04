@@ -20,6 +20,7 @@ import {
   NO_ACCESS_PAGE_USER_PENDING_APPROVAL,
   NO_ACCESS_PAGE_VIEW_LISTINGS,
 } from '../../util/urlHelpers';
+import { createResourceLocatorString, findRouteByRouteName } from '../../util/routes';
 import {
   isErrorNoViewingPermission,
   isErrorUserPendingApproval,
@@ -325,6 +326,7 @@ export const ListingPageComponent = props => {
   const noIndexMaybe =
     currentListing.attributes.state === LISTING_STATE_CLOSED ? { noIndex: true } : {};
 
+
   return (
     <Page
       title={schemaTitle}
@@ -459,6 +461,7 @@ export const ListingPageComponent = props => {
               marketplaceName={config.marketplaceName}
               showListingImage={showListingImage}
             />
+
           </div>
         </div>
       </LayoutSingleColumn>

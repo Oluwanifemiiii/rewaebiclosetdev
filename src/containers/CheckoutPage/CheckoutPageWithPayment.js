@@ -16,7 +16,7 @@ import {
   NEGOTIATION_PROCESS_NAME,
   PURCHASE_PROCESS_NAME,
 } from '../../transactions/transaction';
-
+import { setInitialValues } from '../../containers/TransactionPage/TransactionPage.duck' 
 // Import shared components
 import { H3, H4, NamedLink, OrderBreakdown, Page, TopbarSimplified } from '../../components';
 
@@ -38,7 +38,7 @@ import StripePaymentForm from './StripePaymentForm/StripePaymentForm';
 import DetailsSideCard from './DetailsSideCard';
 import MobileListingImage from './MobileListingImage';
 import MobileOrderBreakdown from './MobileOrderBreakdown';
-
+import { IconSpinner } from '../../components';
 import css from './CheckoutPage.module.css';
 
 // Stripe PaymentIntent statuses, where user actions are already completed
@@ -226,110 +226,6 @@ export const loadInitialDataForStripePayments = ({
   fetchSpeculatedTransactionIfNeeded(orderParams, pageData, fetchSpeculatedTransaction);
 };
 
-const handleSubmit = (values, process, props, stripe, submitting, setSubmitting) => {
-  if (submitting) {
-    return;
-  }
-  setSubmitting(true);
-
-  const {
-    history,
-    config,
-    routeConfiguration,
-    speculatedTransaction,
-    currentUser,
-    stripeCustomerFetched,
-    paymentIntent,
-    dispatch,
-    onInitiateOrder,
-    onConfirmCardPayment,
-    onConfirmPayment,
-    onSendMessage,
-    onSavePaymentMethod,
-    onSubmitCallback,
-    pageData,
-    setPageData,
-    sessionStorageKey,
-  } = props;
-  const { card, message, paymentMethod: selectedPaymentMethod, formValues } = values;
-  const { saveAfterOnetimePayment: saveAfterOnetimePaymentRaw } = formValues;
-
-  const saveAfterOnetimePayment =
-    Array.isArray(saveAfterOnetimePaymentRaw) && saveAfterOnetimePaymentRaw.length > 0;
-  const selectedPaymentFlow = paymentFlow(selectedPaymentMethod, saveAfterOnetimePayment);
-  const hasDefaultPaymentMethodSaved = hasDefaultPaymentMethod(stripeCustomerFetched, currentUser);
-  const stripePaymentMethodId = hasDefaultPaymentMethodSaved
-    ? currentUser?.stripeCustomer?.defaultPaymentMethod?.attributes?.stripePaymentMethodId
-    : null;
-
-  // If paymentIntent status is not waiting user action,
-  // confirmCardPayment has been called previously.
-  const hasPaymentIntentUserActionsDone =
-    paymentIntent && STRIPE_PI_USER_ACTIONS_DONE_STATUSES.includes(paymentIntent.status);
-
-  const requestPaymentParams = {
-    pageData,
-    speculatedTransaction,
-    stripe,
-    card,
-    billingDetails: getBillingDetails(formValues, currentUser),
-    message,
-    paymentIntent,
-    hasPaymentIntentUserActionsDone,
-    stripePaymentMethodId,
-    process,
-    onInitiateOrder,
-    onConfirmCardPayment,
-    onConfirmPayment,
-    onSendMessage,
-    onSavePaymentMethod,
-    sessionStorageKey,
-    stripeCustomer: currentUser?.stripeCustomer,
-    isPaymentFlowUseSavedCard: selectedPaymentFlow === USE_SAVED_CARD,
-    isPaymentFlowPayAndSaveCard: selectedPaymentFlow === PAY_AND_SAVE_FOR_LATER_USE,
-    setPageData,
-  };
-
-  const shippingDetails = getShippingDetailsMaybe(formValues);
-  // Note: optionalPaymentParams contains Stripe paymentMethod,
-  // but that can also be passed on Step 2
-  // stripe.confirmCardPayment(stripe, { payment_method: stripePaymentMethodId })
-  const optionalPaymentParams =
-    selectedPaymentFlow === USE_SAVED_CARD && hasDefaultPaymentMethodSaved
-      ? { paymentMethod: stripePaymentMethodId }
-      : selectedPaymentFlow === PAY_AND_SAVE_FOR_LATER_USE
-      ? { setupPaymentMethodForSaving: true }
-      : {};
-
-  // These are the order parameters for the first payment-related transition
-  // which is either initiate-transition or initiate-transition-after-enquiry
-  const orderParams = getOrderParams(pageData, shippingDetails, optionalPaymentParams, config);
-
-  // There are multiple XHR calls that needs to be made against Stripe API and Sharetribe Marketplace API on checkout with payments
-  processCheckoutWithPayment(orderParams, requestPaymentParams)
-    .then(response => {
-      const { orderId, messageSuccess, paymentMethodSaved } = response;
-      setSubmitting(false);
-
-      const initialMessageFailedToTransaction = messageSuccess ? null : orderId;
-      const orderDetailsPath = pathByRouteName('OrderDetailsPage', routeConfiguration, {
-        id: orderId.uuid,
-      });
-      const initialValues = {
-        initialMessageFailedToTransaction,
-        savePaymentMethodFailed: !paymentMethodSaved,
-      };
-
-      setOrderPageInitialValues(initialValues, routeConfiguration, dispatch);
-      onSubmitCallback();
-      history.push(orderDetailsPath);
-    })
-    .catch(err => {
-      console.error(err);
-      setSubmitting(false);
-    });
-};
-
 const onStripeInitialized = (stripe, process, props) => {
   const { paymentIntent, onRetrievePaymentIntent, pageData } = props;
   const tx = pageData?.transaction || null;
@@ -394,9 +290,8 @@ const onStripeInitialized = (stripe, process, props) => {
  */
 export const CheckoutPageWithPayment = props => {
   const [submitting, setSubmitting] = useState(false);
-  // Initialized stripe library is saved to state - if it's needed at some point here too.
   const [stripe, setStripe] = useState(null);
-
+  const [paystackProcessing, setPaystackProcessing] = useState(false);
   const {
     scrollingDisabled,
     speculateTransactionError,
@@ -412,11 +307,418 @@ export const CheckoutPageWithPayment = props => {
     retrievePaymentIntentError,
     stripeCustomerFetched,
     pageData,
+    setPageData, // ✅ ADD THIS
     processName,
     listingTitle,
     title,
     config,
   } = props;
+
+
+  const handleSubmit = values => {
+    if (submitting) return;
+    setSubmitting(true);
+
+    const process = getProcess(processName);
+
+    const {
+      history,
+      routeConfiguration,
+      speculatedTransaction,
+      currentUser,
+      paymentIntent,
+      onInitiateOrder,
+      onConfirmCardPayment,
+      onConfirmPayment,
+      onSendMessage,
+      onSavePaymentMethod,
+      onSubmitCallback,
+    } = props;
+
+    const { card, message, paymentMethod: selectedPaymentMethod, formValues } = values;
+
+    const saveAfterOnetimePayment =
+      Array.isArray(formValues?.saveAfterOnetimePayment) &&
+      formValues.saveAfterOnetimePayment.length > 0;
+
+    const selectedPaymentFlow = paymentFlow(selectedPaymentMethod, saveAfterOnetimePayment);
+
+    const hasDefaultSavedMethod = hasDefaultPaymentMethod(stripeCustomerFetched, currentUser);
+
+    const stripePaymentMethodId = hasDefaultSavedMethod
+      ? currentUser?.stripeCustomer?.defaultPaymentMethod?.attributes?.stripePaymentMethodId
+      : null;
+
+    const shippingDetails = getShippingDetailsMaybe(formValues);
+
+    let optionalPaymentParams = {};
+
+    if (selectedPaymentFlow === 'USE_SAVED_CARD' && hasDefaultSavedMethod) {
+      optionalPaymentParams = { paymentMethod: stripePaymentMethodId };
+    } else if (selectedPaymentFlow === 'PAY_AND_SAVE_FOR_LATER_USE') {
+      optionalPaymentParams = { setupPaymentMethodForSaving: true };
+    }
+
+    const orderParams = getOrderParams(pageData, shippingDetails, optionalPaymentParams, config);
+
+    if (pageData?.orderData?.paymentMethod === 'paystack') {
+      orderParams.transactionProcessAlias = 'paystack-purchase/release-1';
+    }
+
+    const requestPaymentParams = {
+      pageData,
+      speculatedTransaction,
+      stripe,
+      card,
+      billingDetails: getBillingDetails(formValues, currentUser),
+      message,
+      paymentIntent,
+      stripePaymentMethodId,
+      process,
+      onInitiateOrder,
+      onConfirmCardPayment,
+      onConfirmPayment,
+      onSendMessage,
+      onSavePaymentMethod,
+      sessionStorageKey: props.sessionStorageKey,
+      stripeCustomer: currentUser?.stripeCustomer,
+      isPaymentFlowUseSavedCard: selectedPaymentFlow === 'USE_SAVED_CARD',
+      isPaymentFlowPayAndSaveCard: selectedPaymentFlow === 'PAY_AND_SAVE_FOR_LATER_USE',
+      setPageData,
+    };
+
+    processCheckoutWithPayment(orderParams, requestPaymentParams)
+      .then(res => {
+        setSubmitting(false);
+        const { orderId } = res;
+
+        const orderDetailsPath = pathByRouteName('OrderDetailsPage', routeConfiguration, {
+          id: orderId.uuid,
+        });
+
+        onSubmitCallback && onSubmitCallback();
+        history.push(orderDetailsPath);
+      })
+      .catch(err => {
+        console.error(err);
+        setSubmitting(false);
+      });
+  };
+
+const USD_TO_NGN_RATE = 1490;
+
+const getPaystackAmountFromListing = listing => {
+  if (!listing) return null;
+  
+  console.log('=== PRICE DEBUG ===');
+  console.log('listing.attributes.price:', listing.attributes?.price);
+  console.log('listing.attributes.publicData:', listing.attributes?.publicData);
+  console.log('==================');
+  
+  const publicData = listing.attributes?.publicData || {};
+  const listingType = publicData.listingType; // ✅ Check listing type
+  
+  // ✅ 1) Check for explicit Paystack price in NGN (highest priority)
+  if (publicData.paystackPriceNgn) {
+    const maybe = Number(publicData.paystackPriceNgn);
+    if (!Number.isNaN(maybe) && isFinite(maybe) && maybe > 0) {
+      console.log('Using paystackPriceNgn:', maybe, 'NGN');
+      return Math.round(maybe * 100);
+    }
+  }
+
+  // ✅ 2) Use the standard price field (this is the rental price for rentals, sale price for sales)
+  const price = listing.attributes?.price;
+  if (price && typeof price.amount === 'number') {
+    const usdCents = price.amount;
+    const usdWhole = usdCents / 100;
+    console.log('Using listing.attributes.price:', usdWhole, 'USD');
+    console.log('Listing type:', listingType);
+    
+    if (!Number.isNaN(usdWhole) && isFinite(usdWhole) && usdWhole > 0) {
+      const ngn = usdWhole * USD_TO_NGN_RATE;
+      const kobo = Math.round(ngn * 100);
+      console.log('Converted to NGN:', ngn, 'NGN (', kobo, 'kobo)');
+      return kobo;
+    }
+  }
+
+  // ✅ 3) Fallback: Try publicData.value (this is usually the sale price)
+  if (publicData.value) {
+    const usdValue = Number(publicData.value);
+    if (!Number.isNaN(usdValue) && isFinite(usdValue) && usdValue > 0) {
+      console.log('Fallback: Using publicData.value:', usdValue, 'USD');
+      
+      const ngnValue = usdValue * USD_TO_NGN_RATE;
+      const kobo = Math.round(ngnValue * 100);
+      
+      console.log('Converted to NGN:', ngnValue, 'NGN (', kobo, 'kobo)');
+      return kobo;
+    }
+  }
+
+  console.error('Could not find valid price in listing:', listing);
+  return null;
+};
+
+const handlePaystackPayment = async () => {
+  if (paystackProcessing) return;
+  
+  try {
+    if (!currentUser || !currentUser.id) {
+      alert('Please log in to complete your purchase.');
+      return;
+    }
+
+    const existingTransaction = pageData?.transaction;
+    let transactionId = existingTransaction?.id?.uuid;
+    const isAcceptingOffer = transactionId && existingTransaction.attributes?.lastTransition;
+    const isRetryingPayment =
+      existingTransaction?.attributes?.lastTransition === 'transition/request-payment-paystack';
+    const speculatedTransaction = speculatedTransactionMaybe || pageData?.speculatedTransaction;
+    let amountInKobo;
+    let paystackRef;
+
+    if (isRetryingPayment) {
+      // RETRY SCENARIO
+      console.log('Retrying incomplete Paystack payment');
+      paystackRef = existingTransaction.attributes.protectedData.paystackReference;
+      amountInKobo = existingTransaction.attributes.protectedData.paystackAmount;
+
+      if (!paystackRef || !amountInKobo) {
+        alert('Payment information missing. Please start a new order.');
+        return;
+      }
+    } else if (isAcceptingOffer) {
+      // ACCEPTING OFFER
+      paystackRef = `REWA-${Date.now()}`;
+      const lineItems = existingTransaction.attributes?.lineItems;
+      const lineTotal = lineItems?.[0]?.lineTotal;
+
+      if (lineTotal?.currency === 'USD') {
+        const usdCents = lineTotal.amount;
+        const usdWhole = usdCents / 100;
+        const ngn = usdWhole * 1490;
+        amountInKobo = Math.round(ngn * 100);
+      } else if (lineTotal?.currency === 'NGN') {
+        amountInKobo = lineTotal.amount;
+      } else {
+        alert('Unsupported currency');
+        return;
+      }
+
+      try {
+        const response = await fetch('http://localhost:3500/api/transition-to-paystack-payment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            transactionId,
+            paystackReference: paystackRef,
+            amount: amountInKobo,
+          }),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+          throw new Error(result.message || 'Failed to prepare payment');
+        }
+      } catch (err) {
+        console.error('Failed to prepare payment:', err);
+        alert('Failed to prepare payment: ' + err.message);
+        return;
+      }
+    } else {
+      paystackRef = `REWA-${Date.now()}`;
+      const listing = pageData?.listing;
+      if (!listing) {
+        alert('Listing data missing. Refresh and try again.');
+        return;
+      }
+
+      console.log('=== AMOUNT CALCULATION ===');
+      console.log('pageData:', pageData);
+      console.log('Has speculated transaction in pageData?', !!pageData?.speculatedTransaction);
+      console.log('Has speculated transaction in props?', !!props.speculatedTransaction);
+      console.log('Using speculatedTransaction:', speculatedTransaction);
+      console.log('Speculated lineItems:', speculatedTransaction?.attributes?.lineItems);
+
+      if (speculatedTransaction?.attributes?.lineItems) {
+        const lineItems = speculatedTransaction.attributes.lineItems;
+        console.log('All line items:', lineItems);
+
+        const mainLineItem = lineItems.find(
+          item => item.code.startsWith('line-item/') && !item.reversal
+        );
+
+        console.log('Main line item:', mainLineItem);
+
+        if (mainLineItem?.lineTotal) {
+          const usdCents = mainLineItem.lineTotal.amount;
+          const usdWhole = usdCents / 100;
+          console.log('✅ CORRECT AMOUNT - Using speculated lineTotal:', usdWhole, 'USD');
+          const ngn = usdWhole * 1490;
+          amountInKobo = Math.round(ngn * 100);
+          console.log('Converted to Paystack:', amountInKobo, 'kobo (₦' + amountInKobo / 100 + ')');
+        } else {
+          alert('Could not calculate booking price');
+          return;
+        }
+      } else {
+        console.log('No speculated transaction, using listing price');
+        amountInKobo = getPaystackAmountFromListing(listing);
+      }
+
+      if (!amountInKobo || amountInKobo <= 0) {
+        alert('No valid price found.');
+        return;
+      }
+
+      // ✅ Determine the correct process based on listing type
+      const publicData = listing.attributes?.publicData || {};
+      const transactionProcessAlias = publicData.transactionProcessAlias;
+      const isBooking = transactionProcessAlias?.includes('booking');
+
+      const processAlias = isBooking
+        ? 'default-booking/release-1'
+        : 'default-purchase-paystack/release-1';
+
+      console.log('Listing type:', publicData.listingType);
+      console.log('Transaction process:', transactionProcessAlias);
+      console.log('Using process:', processAlias);
+
+      // ✅ Get unitType from listing
+      const unitType = publicData.unitType;
+
+      // ✅ Get booking dates if this is a booking
+      const bookingStart = pageData?.orderData?.bookingDates?.bookingStart;
+      const bookingEnd = pageData?.orderData?.bookingDates?.bookingEnd;
+
+      const bookingParams =
+        isBooking && bookingStart && bookingEnd
+          ? {
+              bookingStart: bookingStart.toISOString(),
+              bookingEnd: bookingEnd.toISOString(),
+              unitType,
+              listingType: publicData.listingType,
+              transactionProcessAlias,
+            }
+          : {};
+
+      try {
+        const response = await fetch('http://localhost:3500/api/initiate-transaction', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            processAlias,
+            transition: 'transition/request-payment-paystack',
+            params: {
+              listingId: listing.id.uuid,
+              paystackReference: paystackRef,
+              amount: amountInKobo,
+              ...bookingParams,
+            },
+          }),
+        });
+
+        const result = await response.json();
+
+        console.log('API Response:', result); // ✅ Add this
+        console.log('Response status:', response.status); // ✅ Add this
+
+        if (!response.ok || !result.success) {
+          console.error('Full error response:', result); // ✅ Add this
+          throw new Error(result.message || 'Failed to create transaction');
+        }
+
+        transactionId = result.data.id.uuid;
+      } catch (err) {
+        console.error('Failed to create transaction:', err);
+        alert('Failed to create order: ' + err.message);
+        return;
+      }
+    }
+
+    // Open Paystack
+    const paystackPublicKey = config.paystack?.publicKey;
+
+    if (!paystackPublicKey || !window.PaystackPop) {
+      alert('Payment system not ready. Please refresh the page.');
+      return;
+    }
+
+    const handlePaystackSuccess = function(response) {
+      console.log('Payment successful:', response.reference);
+      setPaystackProcessing(true);
+      verifyPaystackPayment(response.reference, transactionId);
+    };
+
+    const handlePaystackClose = function() {
+      console.log('Paystack closed');
+      setPaystackProcessing(false);
+    };
+
+    const handler = window.PaystackPop.setup({
+      key: paystackPublicKey,
+      email: currentUser.attributes.email,
+      amount: amountInKobo,
+      currency: 'NGN',
+      ref: paystackRef,
+      callback: handlePaystackSuccess,
+      onClose: handlePaystackClose,
+    });
+
+    console.log('Opening Paystack with amount:', amountInKobo, 'kobo (₦' + (amountInKobo/100) + ')');
+    handler.openIframe();
+  } catch (err) {
+    console.error('Payment error:', err);
+    alert('Unexpected error. See console.');
+    setPaystackProcessing(false);
+  }
+};
+
+const verifyPaystackPayment = async (reference, transactionId) => {
+  const { routeConfiguration } = props;
+
+  try {
+    console.log('Verifying payment...', reference, transactionId);
+    
+    const res = await fetch("http://localhost:3500/api/paystack/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: 'include',
+      body: JSON.stringify({ reference, transactionId }),
+    });
+
+    const data = await res.json();
+    console.log('Verification response:', data);
+
+    if (data.success && data.transaction) {
+      // ✅ Wait 2 seconds for the backend to fully process
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      const orderPath = pathByRouteName("OrderDetailsPage", routeConfiguration, {
+        id: data.transaction.id.uuid,
+      });
+      
+      console.log('Redirecting to:', orderPath);
+      window.location.href = orderPath;
+      
+    } else {
+      console.error('Verification failed:', data);
+      alert(data.message || "Payment verification failed");
+    }
+  } catch (error) {
+    console.error('Verification error:', error);
+    alert("Payment verification failed: " + error.message);
+  }
+};
+
+
+  const paymentMethod = pageData?.orderData?.paymentMethod || 'stripe';
+  const isPaystack = paymentMethod === 'paystack';
 
   // Since the listing data is already given from the ListingPage
   // and stored to handle refreshes, it might not have the possible
@@ -591,7 +893,7 @@ export const CheckoutPageWithPayment = props => {
             {errorMessages.retrievePaymentIntentErrorMessage}
             {errorMessages.paymentExpiredMessage}
 
-            {showPaymentForm ? (
+            {showPaymentForm && !isPaystack ? (
               <StripePaymentForm
                 className={css.paymentForm}
                 onSubmit={values =>
@@ -629,6 +931,34 @@ export const CheckoutPageWithPayment = props => {
                 isFuzzyLocation={config.maps.fuzzy.enabled}
               />
             ) : null}
+            <button
+              style={{
+                backgroundColor: paystackProcessing ? '#6b7280' : '#059669', // ✅ Gray when processing
+                color: 'white',
+                padding: '12px 20px',
+                fontSize: '16px',
+                fontWeight: 600,
+                border: 'none',
+                borderRadius: '8px',
+                cursor: paystackProcessing ? 'not-allowed' : 'pointer', // ✅ Change cursor
+                width: '100%',
+                marginTop: '16px',
+                transition: '0.25s',
+                display: 'flex', // ✅ For centering spinner
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+              }}
+              onMouseOver={e => !paystackProcessing && (e.target.style.backgroundColor = '#047857')}
+              onMouseOut={e => !paystackProcessing && (e.target.style.backgroundColor = '#059669')}
+              onClick={handlePaystackPayment}
+              disabled={paystackProcessing} // ✅ Disable when processing
+            >
+              {paystackProcessing && (
+                <IconSpinner /> // ✅ Show spinner
+              )}
+              {paystackProcessing ? 'Processing payment...' : 'Pay with Paystack'}
+            </button>
           </section>
         </main>
 

@@ -12,7 +12,8 @@ export const googleMapsAPIKey = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
 // Choose map provider: 'mapbox', 'googleMaps'
 // Note: The mapProvider comes from map asset nowadays by default.
 //       To use this built-in configuration, you need to remove the overwrite from configHelper.js (mergeMapConfig func)
-export const mapProvider = 'mapbox';
+// Default changed to Google Maps per marketplace preference.
+export const mapProvider = 'googleMaps';
 
 // The location search input can be configured to show default
 // searches when the user focuses on the input and hasn't yet typed

@@ -233,3 +233,22 @@ exports.fetchAccessControlAsset = sdk => {
       return response;
     });
 };
+
+exports.getDirectTrustedSdk = () => {
+  if (!CLIENT_ID || !CLIENT_SECRET) {
+    throw new Error('Missing Sharetribe SDK credentials');
+  }
+
+  return sharetribeSdk.createInstance({
+    transitVerbose: TRANSIT_VERBOSE,
+    clientId: CLIENT_ID,
+    clientSecret: CLIENT_SECRET,
+    httpAgent,
+    httpsAgent,
+    tokenStore: sharetribeSdk.tokenStore.memoryStore(),
+    typeHandlers,
+    ...baseUrlMaybe,
+  });
+};
+
+exports.getUserToken = getUserToken;

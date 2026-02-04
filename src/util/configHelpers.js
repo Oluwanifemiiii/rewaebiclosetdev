@@ -1406,7 +1406,11 @@ const mergeMapConfig = (hostedMapConfig, defaultMapConfig) => {
   const { mapProvider, mapboxAccessToken, googleMapsAPIKey, ...restOfDefault } = defaultMapConfig;
   const mapProviderPicked = hostedMapConfig?.provider || mapProvider;
   const mapboxAccessTokenPicked = hostedMapConfig?.mapboxAccessToken || mapboxAccessToken;
-  const googleMapsAPIKeyPicked = hostedMapConfig?.googleMapsApiKey || googleMapsAPIKey;
+  const googleMapsAPIKeyPicked =
+  hostedMapConfig?.googleMapsApiKey ||
+  process.env.REACT_APP_GOOGLE_MAPS_API_KEY ||
+  googleMapsAPIKey;
+
 
   const hasApiAccess =
     mapProviderPicked === 'googleMaps' ? !!googleMapsAPIKeyPicked : !!mapboxAccessTokenPicked;
