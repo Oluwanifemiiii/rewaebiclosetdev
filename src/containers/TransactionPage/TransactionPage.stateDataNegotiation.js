@@ -257,6 +257,36 @@ export const getStateDataForNegotiationProcess = (txInfo, processInfo) => {
         ),
       };
     })
+    .cond([states.PENDING_PAYMENT_PAYSTACK, CUSTOMER], () => {
+      const retryPaymentRedirect = {
+        onAction: () => {
+          // ✅ Redirect back to checkout page
+          const listing = transaction?.listing;
+          if (listing) {
+            const initialValues = {
+              listing,
+              transaction,
+              orderData: {},
+            };
+            onCheckoutRedirect(initialValues);
+          }
+        },
+      };
+
+      return {
+        ...sharedStateData,
+        showDetailCardHeadings: true,
+        showExtraInfo: true,
+        showOrderPanel: false,
+        showActionButtons: true,
+        primaryButtonProps: actionButtonProps(
+          'retry-payment', // dummy transition name for button text
+          CUSTOMER,
+          retryPaymentRedirect
+        ),
+      };
+    })
+
     .cond([states.CUSTOMER_OFFER_PENDING, PROVIDER], () => {
       return {
         ...sharedStateData,
@@ -294,16 +324,23 @@ export const getStateDataForNegotiationProcess = (txInfo, processInfo) => {
       };
     })
     .cond([states.DELIVERED, CUSTOMER], () => {
-      // TODO How to hide an action button after certain time has passed or N transitions have been made?
+      // ✅ Check which payment method was used
+      const isPaystackPayment =
+        transaction?.attributes?.protectedData?.paymentMethod === 'paystack';
+
+      // ✅ Use the appropriate transition based on payment method
+      const acceptTransition = isPaystackPayment
+        ? transitions.ACCEPT_DELIVERABLE_PAYSTACK
+        : transitions.ACCEPT_DELIVERABLE;
+
       const changeRequestButtonExtra = {
         onAction: onOpenRequestChangesModal,
-        // conditions to disable the button
         conditions: [
           {
             type: 'durationSinceTransition',
             action: 'disable',
-            sinceTransition: transitions.CONFIRM_PAYMENT, // transaction.attributes.transitions array contains createdAt
-            days: 70, // Note: for now, only days are supported
+            sinceTransition: transitions.CONFIRM_PAYMENT,
+            days: 70,
             disabledReason: {
               translationKey: `TransactionPage.${processName}.${CUSTOMER}.${states.DELIVERED}.disabled.outdated`,
             },
@@ -324,7 +361,7 @@ export const getStateDataForNegotiationProcess = (txInfo, processInfo) => {
         showDetailCardHeadings: true,
         showExtraInfo: true,
         showActionButtons: true,
-        primaryButtonProps: actionButtonProps(transitions.ACCEPT_DELIVERABLE, CUSTOMER),
+        primaryButtonProps: actionButtonProps(acceptTransition, CUSTOMER), // ✅ Use conditional transition
         secondaryButtonProps: actionButtonProps(
           transitions.REQUEST_CHANGES,
           CUSTOMER,

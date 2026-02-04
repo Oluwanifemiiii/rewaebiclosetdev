@@ -63,7 +63,8 @@ export const transitions = {
   OPERATOR_REJECT_FROM_CUSTOMER_COUNTER_OFFER:
     'transition/operator-reject-from-customer-counter-offer',
   PROVIDER_REJECT_COUNTER_OFFER: 'transition/provider-reject-counter-offer',
-
+  REQUEST_PAYMENT_PAYSTACK: 'transition/request-payment-paystack',
+  CONFIRM_PAYMENT_PAYSTACK: 'transition/confirm-payment-paystack',
   // When the customer is satisfied with the offer,
   // they can start the payment process.
   REQUEST_PAYMENT_TO_ACCEPT_OFFER: 'transition/request-payment-to-accept-offer',
@@ -90,6 +91,7 @@ export const transitions = {
   // Accept deliverable:
   // when the customer is satisfied with the service/item, they can accept the deliverable.
   ACCEPT_DELIVERABLE: 'transition/accept-deliverable',
+  ACCEPT_DELIVERABLE_PAYSTACK: 'transition/accept-deliverable-paystack', // ✅ ADD THIS
   AUTO_ACCEPT_DELIVERABLE: 'transition/auto-accept-deliverable',
   OPERATOR_ACCEPT_DELIVERABLE: 'transition/operator-accept-deliverable',
 
@@ -103,6 +105,7 @@ export const transitions = {
   EXPIRE_CUSTOMER_REVIEW_PERIOD: 'transition/expire-customer-review-period',
   EXPIRE_PROVIDER_REVIEW_PERIOD: 'transition/expire-provider-review-period',
   EXPIRE_REVIEW_PERIOD: 'transition/expire-review-period',
+
 };
 
 /**
@@ -124,6 +127,7 @@ export const states = {
   CUSTOMER_OFFER_PENDING: 'customer-offer-pending',
   OFFER_REJECTED: 'offer-rejected',
   PENDING_PAYMENT: 'pending-payment',
+  PENDING_PAYMENT_PAYSTACK: 'pending-payment-paystack',
   PAYMENT_EXPIRED: 'payment-expired',
   OFFER_ACCEPTED: 'offer-accepted',
   CANCELED: 'canceled',
@@ -182,6 +186,7 @@ export const graph = {
         [transitions.PROVIDER_WITHDRAW_OFFER]: states.OFFER_REJECTED,
         [transitions.CUSTOMER_MAKE_COUNTER_OFFER]: states.CUSTOMER_OFFER_PENDING,
         [transitions.REQUEST_PAYMENT_TO_ACCEPT_OFFER]: states.PENDING_PAYMENT,
+        [transitions.REQUEST_PAYMENT_PAYSTACK]: states.PENDING_PAYMENT_PAYSTACK,
         [transitions.UPDATE_OFFER]: states.UPDATE_PENDING,
       },
     },
@@ -213,6 +218,13 @@ export const graph = {
         [transitions.EXPIRE_PAYMENT]: states.PAYMENT_EXPIRED,
       },
     },
+
+    [states.PENDING_PAYMENT_PAYSTACK]: {
+      on: {
+        [transitions.CONFIRM_PAYMENT_PAYSTACK]: states.OFFER_ACCEPTED,
+      },
+    },
+
     [states.PAYMENT_EXPIRED]: { type: 'final' },
     [states.OFFER_ACCEPTED]: {
       on: {
@@ -227,6 +239,7 @@ export const graph = {
         [transitions.REQUEST_CHANGES]: states.CHANGES_REQUESTED,
         [transitions.OPERATOR_REQUEST_CHANGES]: states.CHANGES_REQUESTED,
         [transitions.ACCEPT_DELIVERABLE]: states.COMPLETED,
+        [transitions.ACCEPT_DELIVERABLE_PAYSTACK]: states.COMPLETED,
         [transitions.AUTO_ACCEPT_DELIVERABLE]: states.COMPLETED,
         [transitions.OPERATOR_ACCEPT_DELIVERABLE]: states.COMPLETED,
         [transitions.OPERATOR_CANCEL_FROM_DELIVERED]: states.CANCELED,
@@ -425,6 +438,7 @@ export const isRelevantPastTransition = transition => {
     transitions.PROVIDER_REJECT_COUNTER_OFFER,
     transitions.EXPIRE_PAYMENT,
     transitions.CONFIRM_PAYMENT,
+    transitions.CONFIRM_PAYMENT_PAYSTACK, 
     transitions.AUTO_CANCEL,
     transitions.OPERATOR_CANCEL,
     transitions.DELIVER,

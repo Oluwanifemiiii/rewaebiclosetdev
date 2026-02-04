@@ -43,6 +43,12 @@ const PROCESSES = [
     unitTypes: [ITEM],
   },
   {
+    name: 'default-purchase-paystack',
+    alias: 'default-purchase-paystack/release-1',
+    process: purchaseProcess,
+    unitTypes: [ITEM],
+  },
+  {
     name: BOOKING_PROCESS_NAME,
     alias: `${BOOKING_PROCESS_NAME}/release-1`,
     process: bookingProcess,
@@ -219,6 +225,8 @@ export const resolveLatestProcessName = processName => {
     case 'flex-product-default-process':
     case 'default-buying-products':
     case PURCHASE_PROCESS_NAME:
+      return PURCHASE_PROCESS_NAME;
+    case 'default-purchase-paystack':
       return PURCHASE_PROCESS_NAME;
     case 'flex-default-process':
     case 'flex-hourly-default-process':

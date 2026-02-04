@@ -15,6 +15,11 @@ const defaultConfig = {
   // It should be in environment variables (on localhost 'yarn run config' or edit .env file)
   marketplaceRootURL: process.env.REACT_APP_MARKETPLACE_ROOT_URL,
 
+   paystack: {
+    publicKey: process.env.REACT_APP_PAYSTACK_PUBLIC_KEY,
+    currency: 'NGN',
+  },
+
   // Marketplace currency.
   // The currency used in the Marketplace must be in ISO 4217 currency code. For example USD, EUR, CAD, AUD, etc. The default value is USD.
   // It should match one of the currencies listed in currencySettings.js

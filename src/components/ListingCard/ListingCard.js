@@ -176,12 +176,13 @@ export const ListingCard = props => {
     showAuthorInfo = true,
   } = props;
 
-  const classes = classNames(rootClassName || css.root, className);
-
   const currentListing = ensureListing(listing);
   const id = currentListing.id.uuid;
-  const { title = '', price, publicData } = currentListing.attributes;
+  const { title = '', price, publicData, state } = currentListing.attributes;
   const slug = createSlug(title);
+
+  // ✅ Check if listing is closed
+  const isClosed = state === 'closed';
 
   const author = ensureUser(listing.author);
   const authorName = author.attributes.profile.displayName;
@@ -197,7 +198,6 @@ export const ListingCard = props => {
     variantPrefix = 'listing-card',
   } = config.layout.listingImage;
 
-  // Sets the listing as active in the search map when hovered (if the search map is enabled)
   const setActivePropsMaybe = setActiveListing
     ? {
         onMouseEnter: () => setActiveListing(currentListing.id),
@@ -205,20 +205,47 @@ export const ListingCard = props => {
       }
     : null;
 
+  const classes = classNames(rootClassName || css.root, className, {
+    [css.closedListing]: isClosed, // ✅ Add greyed out class
+  });
+
+  // ✅ Create click handler that prevents navigation for closed listings
+  const handleClick = (e) => {
+    if (isClosed) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  };
+
   return (
-    <NamedLink className={classes} name="ListingPage" params={{ id, slug }}>
-      <ListingCardImage
-        renderSizes={renderSizes}
-        title={title}
-        currentListing={currentListing}
-        config={config}
-        setActivePropsMaybe={setActivePropsMaybe}
-        aspectWidth={aspectWidth}
-        aspectHeight={aspectHeight}
-        variantPrefix={variantPrefix}
-        style={cardStyle}
-        showListingImage={showListingImage}
-      />
+    <NamedLink 
+      className={classes} 
+      name="ListingPage" 
+      params={{ id, slug }}
+      onClick={handleClick} // ✅ Add click handler
+    >
+      <div className={css.wrapper}>
+        {/* ✅ Closed badge */}
+        {isClosed && (
+          <div className={css.closedBadge}>
+            <FormattedMessage id="ListingCard.closed" />
+          </div>
+        )}
+        
+        <ListingCardImage
+          renderSizes={renderSizes}
+          title={title}
+          currentListing={currentListing}
+          config={config}
+          setActivePropsMaybe={setActivePropsMaybe}
+          aspectWidth={aspectWidth}
+          aspectHeight={aspectHeight}
+          variantPrefix={variantPrefix}
+          style={cardStyle}
+          showListingImage={showListingImage}
+        />
+      </div>
+      
       <div className={css.info}>
         <PriceMaybe
           price={price}

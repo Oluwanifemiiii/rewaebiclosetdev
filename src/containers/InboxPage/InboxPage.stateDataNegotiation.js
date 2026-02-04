@@ -21,6 +21,15 @@ export const getStateDataForNegotiationProcess = (txInfo, processInfo) => {
     .cond([states.OFFER_PENDING, CUSTOMER], () => {
       return { processName, processState, actionNeeded: true };
     })
+    .cond([states.PENDING_PAYMENT_PAYSTACK, CUSTOMER], () => {
+      return {
+        processName,
+        processState,
+        actionNeeded: false,
+        isSaleNotification: true,
+      };
+    })
+
     .cond([states.OFFER_REJECTED, _], () => {
       return { processName, processState, isFinal: true };
     })
@@ -30,12 +39,18 @@ export const getStateDataForNegotiationProcess = (txInfo, processInfo) => {
     .cond([states.OFFER_ACCEPTED, PROVIDER], () => {
       return { processName, processState, actionNeeded: true };
     })
+    .cond([states.OFFER_ACCEPTED, CUSTOMER], () => {
+      return {
+        processName,
+        processState,
+        actionNeeded: false,
+        isSaleNotification: true,
+      };
+    })
     .cond([states.CANCELED, _], () => {
       return { processName, processState, isFinal: true };
     })
-    .cond([states.EXPIRED, _], () => {
-      return { processName, processState, isFinal: true };
-    })
+
     .cond([states.DELIVERED, _], () => {
       return { processName, processState, actionNeeded: true };
     })

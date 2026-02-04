@@ -136,6 +136,47 @@ const getDateRangeQuantityAndLineItems = (orderData, code) => {
  * @returns {Array} lineItems
  */
 exports.transactionLineItems = (listing, orderData, providerCommission, customerCommission) => {
+
+if (orderData && orderData.buyNow === true) {
+  const price = listing?.attributes?.publicData?.value;
+
+  if (!price) {
+    throw new Error("No buy-now value found in listing.attributes.publicData.value");
+  }
+
+  const currency = listing.attributes.price.currency;
+  const priceInCents = Math.round(Number(price) * 100);
+
+  return [
+    {
+      // Use a line-item code so the line items are valid for OrderBreakdown
+      // and Marketplace API validation. Use 'line-item/item' for one-off purchases.
+      code: 'line-item/item',
+      unitPrice: new Money(priceInCents, currency),
+      quantity: 1,
+      includeFor: ['customer', 'provider'],
+    },
+    // Add platform fee for provider if needed
+    ...(providerCommission
+      ? [
+          {
+            code: providerCommission.code,
+            percentage: providerCommission.percentage,
+            includeFor: ['provider'],
+          },
+        ]
+      : []),
+    ...(customerCommission
+      ? [
+          {
+            code: customerCommission.code,
+            percentage: customerCommission.percentage,
+            includeFor: ['customer'],
+          },
+        ]
+      : []),
+  ];
+}
   const publicData = listing.attributes.publicData;
   // Note: the unitType needs to be one of the following:
   // day, night, hour, fixed, or item (these are related to payment processes)
