@@ -78,15 +78,15 @@ checkEnvVariables(MANDATORY_ENV_VARIABLES);
 const app = express();
 
 // ✅ ADD CORS CONFIGURATION HERE
-const cors = require('cors');
+//const cors = require('cors');
 
 // Configure CORS to accept credentials (cookies)
-app.use(cors({
-  origin: process.env.REACT_APP_MARKETPLACE_ROOT_URL || 'http://localhost:3000',
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}));
+//app.use(cors({
+  //origin: process.env.REACT_APP_MARKETPLACE_ROOT_URL || 'http://localhost:3000',
+  //credentials: true,
+  //methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  //allowedHeaders: ['Content-Type', 'Authorization'],
+//}));
 
 const errorPage500 = fs.readFileSync(path.join(buildPath, '500.html'), 'utf-8');
 const errorPage404 = fs.readFileSync(path.join(buildPath, '404.html'), 'utf-8');
