@@ -26,6 +26,9 @@ const router = express.Router();
 
 // ================ API router middleware: ================ //
 
+router.use(bodyParser.json());
+router.use(bodyParser.urlencoded({ extended: true }));
+
 // Parse Transit body first to a string
 router.use(
   bodyParser.text({
@@ -59,7 +62,9 @@ router.post('/delete-account', deleteAccount);
 // Add this line with your other routes in apiRouter.js
 router.post('/initiate-transaction', require('./api/initiate-transaction'));
 // Find the section where routes are defined and add:
+router.post('/initiate-transaction', require('./api/initiate-transaction'));
 router.post('/transition-to-paystack-payment', require('./api/transition-to-paystack-payment'));
+router.post('/paystack/verify', require('./api/paystack-verify')); 
 // Create user with identity provider (e.g. Facebook or Google)
 // This endpoint is called to create a new user after user has confirmed
 // they want to continue with the data fetched from IdP (e.g. name and email)
