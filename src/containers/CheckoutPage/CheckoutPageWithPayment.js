@@ -508,7 +508,7 @@ const handlePaystackPayment = async () => {
       }
 
       try {
-        const response = await fetch('http://localhost:3500/api/transition-to-paystack-payment', {
+        const response = await fetch('/api/transition-to-paystack-payment', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -607,7 +607,7 @@ const handlePaystackPayment = async () => {
           : {};
 
       try {
-        const response = await fetch('http://localhost:3500/api/initiate-transaction', {
+        const response = await fetch('/api/initiate-transaction', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -685,7 +685,7 @@ const verifyPaystackPayment = async (reference, transactionId) => {
   try {
     console.log('Verifying payment...', reference, transactionId);
     
-    const res = await fetch("http://localhost:3500/api/paystack/verify", {
+    const res = await fetch("/api/paystack/verify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: 'include',
