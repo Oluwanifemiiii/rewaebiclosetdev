@@ -1,7 +1,7 @@
 import React from 'react';
 import { compose } from 'redux';
 import { connect } from 'react-redux';
-
+import ManualPayoutDetailsPage from '../ManualPayoutDetailsPage/ManualPayoutDetailsPage';
 import { useConfiguration } from '../../context/configurationContext';
 import { useRouteConfiguration } from '../../context/routeConfigurationContext';
 import { createResourceLocatorString } from '../../util/routes';
@@ -121,7 +121,12 @@ export const StripePayoutPageComponent = props => {
     params,
     authScopes,
   } = props;
-
+   const isManualSeller = currentUser?.attributes?.profile?.publicData?.sellerType === 'manual';
+  
+  // ✅ Show bank details form instead of Stripe for manual sellers
+  if (isManualSeller) {
+    return <ManualPayoutDetailsPage {...props} />;
+  }
   const { returnURLType } = params || {};
   const ensuredCurrentUser = ensureCurrentUser(currentUser);
   const currentUserLoaded = !!ensuredCurrentUser.id;

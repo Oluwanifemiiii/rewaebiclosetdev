@@ -428,15 +428,12 @@ class EditListingWizard extends Component {
     this.hasScrolledToTab = shouldScroll;
   }
 
-  handlePublishListing(id) {
+   handlePublishListing(id) {
     const { onPublishListingDraft, currentUser, stripeAccount, listing, config } = this.props;
     const processName = listing?.attributes?.publicData?.transactionProcessAlias.split('/')[0];
     const isInquiryProcess = processName === INQUIRY_PROCESS_NAME;
 
     const listingTypeConfig = getListingTypeConfig(listing, this.state.selectedListingType, config);
-    // Through hosted configs (listingTypeConfig.defaultListingFields?.payoutDetails),
-    // it's possible to publish listing without payout details set by provider.
-    // Customers can't purchase these listings - but it gives operator opportunity to discuss with providers who fail to do so.
     const isPayoutDetailsRequired = requirePayoutDetails(listingTypeConfig);
 
     const stripeConnected = !!currentUser?.stripeAccount?.id;
@@ -446,19 +443,42 @@ class EditListingWizard extends Component {
       (hasRequirements(stripeAccountData, 'past_due') ||
         hasRequirements(stripeAccountData, 'currently_due'));
 
+    const sellerType = currentUser?.attributes?.profile?.publicData?.sellerType;
+    const isManualSeller = sellerType === 'manual';
+
+    // ✅ DEBUG LOGGING - Check the console when publishing
+    console.log('=== PUBLISH LISTING DEBUG ===');
+    console.log('Current user ID:', currentUser?.id?.uuid);
+    console.log('Seller type from publicData:', sellerType);
+    console.log('Is manual seller?', isManualSeller);
+    console.log('Is inquiry process?', isInquiryProcess);
+    console.log('Is payout details required?', isPayoutDetailsRequired);
+    console.log('Stripe connected?', stripeConnected);
+    console.log('Stripe requirements missing?', stripeRequirementsMissing);
+    console.log('Will bypass Stripe modal?', isInquiryProcess || !isPayoutDetailsRequired || isManualSeller || (stripeConnected && !stripeRequirementsMissing));
+    console.log('============================');
+
     if (
       isInquiryProcess ||
       !isPayoutDetailsRequired ||
+      isManualSeller ||
       (stripeConnected && !stripeRequirementsMissing)
     ) {
+      // ✅ Bypass Stripe - publish directly
+      console.log('✅ Bypassing Stripe onboarding - publishing listing directly');
       onPublishListingDraft(id);
     } else {
+      // ❌ Show Stripe modal
+      console.log('❌ Showing Stripe payout modal');
       this.setState({
         draftId: id,
         showPayoutDetails: true,
       });
     }
   }
+
+
+
 
   handlePayoutModalClose() {
     this.setState({ showPayoutDetails: false });
@@ -494,6 +514,10 @@ class EditListingWizard extends Component {
       ...rest
     } = this.props;
 
+  console.log('🟢 === EditListingWizard render() ===');
+  console.log('🟢 currentUser:', currentUser);
+  console.log('🟢 Has currentUser?', !!currentUser);
+  console.log('🟢 ==================================');
     const selectedTab = params.tab;
     const isNewListingFlow = [LISTING_PAGE_PARAM_TYPE_NEW, LISTING_PAGE_PARAM_TYPE_DRAFT].includes(
       params.type
@@ -684,6 +708,7 @@ class EditListingWizard extends Component {
                 config={config}
                 routeConfiguration={routeConfiguration}
                 intl={intl}
+                currentUser={currentUser}
               />
             );
           })}
@@ -772,12 +797,14 @@ const EnhancedEditListingWizard = props => {
   const config = useConfiguration();
   const routeConfiguration = useRouteConfiguration();
   const intl = useIntl();
+
   return (
     <EditListingWizard
       config={config}
       routeConfiguration={routeConfiguration}
       intl={intl}
       {...props}
+      
     />
   );
 };

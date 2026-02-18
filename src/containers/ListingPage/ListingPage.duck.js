@@ -222,27 +222,91 @@ const sendInquiryPayloadCreator = (
 
   const listingId = listing?.id;
   const [processName, alias] = processAlias.split('/');
-  const transitions = getProcess(processName)?.transitions;
+  const process = getProcess(processName);
+  const transitions = process?.transitions;
 
-  const bodyParams = {
-    transition: transitions.INQUIRE,
-    processAlias,
-    params: { listingId },
-  };
-  return sdk.transactions
-    .initiate(bodyParams)
-    .then(response => {
-      const transactionId = response.data.data.id;
+  // ✅ Check if this is a manual process
+  const isManualProcess = processAlias.includes('manual');
+  
+  // ✅ Check if the transition is privileged
+  const isPrivileged = process?.isPrivileged && process.isPrivileged(transitions.INQUIRE);
 
-      // Send the message to the created transaction
-      return sdk.messages.send({ transactionId, content: message }).then(() => {
-        dispatch(setCurrentUserHasOrders());
-        return transactionId;
-      });
+
+  // ✅ For manual process OR privileged transitions, use backend endpoint
+  if (isManualProcess || isPrivileged) {
+    console.log('✅ Routing through backend /api/initiate-privileged');
+    
+    const bodyParams = {
+      isSpeculative: false,
+      orderData: {},
+      bodyParams: {
+        processAlias,
+        transition: transitions.INQUIRE,
+        params: { listingId },
+      },
+      queryParams: {
+        include: ['provider'],
+        expand: true,
+      },
+    };
+
+    return fetch('/api/initiate-privileged', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify(bodyParams),
     })
-    .catch(e => {
-      return rejectWithValue(storableError(e));
-    });
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        // Parse the transit+json response
+        const transactionId = data?.data?.data?.id;
+        
+        if (!transactionId) {
+          throw new Error('No transaction ID in response');
+        }
+
+        // Send the message to the created transaction
+        return sdk.messages.send({ transactionId, content: message }).then(() => {
+          dispatch(setCurrentUserHasOrders());
+          return transactionId;
+        });
+      })
+      .catch(e => {
+        console.error('Initiate privileged error:', e);
+        return rejectWithValue(storableError(e));
+      });
+  } else {
+    // ✅ Non-privileged transitions can use SDK directly
+    console.log('Using SDK directly for non-privileged transition');
+    
+    const bodyParams = {
+      transition: transitions.INQUIRE,
+      processAlias,
+      params: { listingId },
+    };
+    
+    return sdk.transactions
+      .initiate(bodyParams)
+      .then(response => {
+        const transactionId = response.data.data.id;
+
+        // Send the message to the created transaction
+        return sdk.messages.send({ transactionId, content: message }).then(() => {
+          dispatch(setCurrentUserHasOrders());
+          return transactionId;
+        });
+      })
+      .catch(e => {
+        return rejectWithValue(storableError(e));
+      });
+  }
 };
 
 export const sendInquiryThunk = createAsyncThunk(

@@ -233,10 +233,15 @@ export const ListingPageComponent = props => {
 
   const currentAuthor = authorAvailable ? currentListing.author : null;
   const ensuredAuthor = ensureUser(currentAuthor);
+  const sellerType = currentAuthor?.attributes?.profile?.publicData?.sellerType;
+  const isManualSeller = sellerType === 'manual';
   const authorNeedsPayoutDetails =
-    ['booking', 'purchase'].includes(processType) || (isNegotiation && unitType === OFFER);
+    !isManualSeller && (['booking', 'purchase'].includes(processType) || (isNegotiation && unitType === OFFER));
   const noPayoutDetailsSetWithOwnListing =
-    isOwnListing && (authorNeedsPayoutDetails && !currentUser?.attributes?.stripeConnected);
+  isOwnListing &&
+  authorNeedsPayoutDetails &&
+  !currentUser?.stripeAccount?.id &&
+  !isManualSeller;
   const payoutDetailsWarning = noPayoutDetailsSetWithOwnListing ? (
     <span className={css.payoutDetailsWarning}>
       <FormattedMessage id="ListingPage.payoutDetailsWarning" values={{ processType }} />

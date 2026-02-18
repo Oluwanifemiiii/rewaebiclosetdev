@@ -8,7 +8,7 @@ import { propTypes } from '../../../util/types';
 import * as validators from '../../../util/validators';
 import { getPropsForCustomUserFieldInputs } from '../../../util/userHelpers';
 
-import { Form, PrimaryButton, FieldTextInput, CustomExtendedDataField } from '../../../components';
+import { Form, PrimaryButton, FieldTextInput, FieldCheckbox, CustomExtendedDataField } from '../../../components';
 
 import FieldSelectUserType from '../FieldSelectUserType';
 import UserFieldDisplayName from '../UserFieldDisplayName';
@@ -204,6 +204,16 @@ const SignupFormComponent = props => (
                 userTypeConfig={userTypeConfig}
                 intl={intl}
               />
+
+              {/* ✅ NEW: Nigerian seller checkbox */}
+              <div className={css.nigerianSellerCheckbox}>
+                <FieldCheckbox
+                  id={formId ? `${formId}.isNigerianSeller` : 'isNigerianSeller'}
+                  name="isNigerianSeller"
+                  label="I am based in Nigeria and want to receive payments via Paystack/Manual transfer"
+                  value="manual"
+                />
+              </div>
             </div>
           ) : null}
 

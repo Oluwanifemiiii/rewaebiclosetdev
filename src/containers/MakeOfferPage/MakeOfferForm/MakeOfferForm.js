@@ -40,11 +40,13 @@ const getPriceValidators = (listingMinimumPriceSubUnits, marketplaceCurrency, in
 
   return listingMinimumPriceSubUnits
     ? validators.composeValidators(quoteRequired, minQuoteRequired)
-    : priceRequired;
+    : quoteRequired;
 };
 
-const FinePrint = ({ stripeConnected }) => {
-  if (stripeConnected) {
+// ✅ Updated FinePrint to handle manual sellers
+const FinePrint = ({ stripeConnected, isManualSeller }) => {
+  // ✅ Manual sellers don't need Stripe
+  if (stripeConnected || isManualSeller) {
     return (
       <div className={css.finePrint}>
         <FormattedMessage id="MakeOfferPage.finePrint" />
@@ -81,6 +83,7 @@ const FinePrint = ({ stripeConnected }) => {
  * @param {intlShape} props.intl - The intl object.
  * @param {Object} props.config - The config object.
  * @param {propTypes.error} props.initiateInquiryError - The error message.
+ * @param {propTypes.currentUser} props.currentUser - The current user.
  */
 export const MakeOfferForm = props => {
   const {
@@ -88,10 +91,22 @@ export const MakeOfferForm = props => {
     config,
     price,
     stripeConnected,
+    currentUser,
     errorMessageComponent: ErrorMessage,
     makeOfferError,
     onSubmit,
   } = props;
+
+  // ✅ Check if current user is a manual seller
+  const sellerType = currentUser?.attributes?.profile?.publicData?.sellerType;
+  const isManualSeller = sellerType === 'manual';
+
+  console.log('=== MAKE OFFER FORM ===');
+  console.log('Seller type:', sellerType);
+  console.log('Is manual seller?', isManualSeller);
+  console.log('Stripe connected?', stripeConnected);
+  console.log('Will allow submission?', isManualSeller || stripeConnected);
+  console.log('======================');
 
   const initialValuesMaybe = price ? { offer: price } : {};
 
@@ -105,7 +120,20 @@ export const MakeOfferForm = props => {
   return (
     <FinalForm
       initialValues={initialValuesMaybe}
-      onSubmit={onSubmit}
+      onSubmit={values => {
+        // ✅ Determine currency based on seller type
+        const currency = isManualSeller ? 'NGN' : marketplaceCurrency;
+        
+        console.log('=== SUBMITTING OFFER ===');
+        console.log('Form values:', values);
+        console.log('Offer amount (quote):', values.quote);
+        console.log('Currency:', currency);
+        console.log('Is manual seller?', isManualSeller);
+        console.log('========================');
+        
+        // Add currency to the submitted values
+        onSubmit({ ...values, currency });
+      }}
       render={formRenderProps => {
         const {
           rootClassName,
@@ -120,7 +148,9 @@ export const MakeOfferForm = props => {
 
         const classes = classNames(rootClassName || css.root, className);
         const submitInProgress = inProgress;
-        const submitDisabled = invalid || submitInProgress || !stripeConnected;
+        
+        // ✅ Allow submission if manual seller OR Stripe connected
+        const submitDisabled = invalid || submitInProgress || !(stripeConnected || isManualSeller);
 
         return (
           <Form className={classes} onSubmit={handleSubmit} enforcePagePreloadFor="SaleDetailsPage">
@@ -137,9 +167,12 @@ export const MakeOfferForm = props => {
                   {
                     id: 'MakeOfferPage.quotePlaceholder',
                   },
-                  { marketplaceCurrency }
+                  // ✅ Show NGN for manual sellers, USD for others
+                  { marketplaceCurrency: isManualSeller ? 'NGN' : marketplaceCurrency }
                 )}
-                currencyConfig={appSettings.getCurrencyFormatting(marketplaceCurrency)}
+                currencyConfig={appSettings.getCurrencyFormatting(
+                  isManualSeller ? 'NGN' : marketplaceCurrency
+                )}
                 validate={priceValidators}
               />
 
@@ -166,7 +199,7 @@ export const MakeOfferForm = props => {
               <PrimaryButton type="submit" inProgress={submitInProgress} disabled={submitDisabled}>
                 <FormattedMessage id="MakeOfferPage.submitButtonText" />
               </PrimaryButton>
-              <FinePrint stripeConnected={stripeConnected} />
+              <FinePrint stripeConnected={stripeConnected} isManualSeller={isManualSeller} />
             </div>
           </Form>
         );

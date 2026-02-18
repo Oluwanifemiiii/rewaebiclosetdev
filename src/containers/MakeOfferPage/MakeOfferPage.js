@@ -207,6 +207,7 @@ const MakeOfferPageComponent = props => {
               config={config}
               price={price}
               stripeConnected={stripeConnected && stripeAccountData && !requirementsMissing}
+              currentUser={currentUser} // ✅ ADD THIS LINE
               onSubmit={onSubmit}
               errorMessageComponent={ErrorMessage}
               makeOfferError={makeOfferError}

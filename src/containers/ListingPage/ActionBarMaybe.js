@@ -124,7 +124,16 @@ export const ActionBarMaybe = props => {
     const ownListingTextClasses = classNames(css.ownListingText, {
       [css.ownListingTextPendingApproval]: isPendingApproval,
     });
+    const isManualSeller = currentUser?.attributes?.profile?.publicData?.sellerType === 'manual';
 
+    const linkText = isManualSeller
+      ? 'ListingPage.addBankDetails' // You'll need to add this translation
+      : 'ListingPage.addPayoutDetails';
+
+    <NamedLink className={css.addPayoutDetails} name="StripePayoutPage">
+      <EditIcon className={css.editIcon} />
+      <FormattedMessage id={linkText} />
+    </NamedLink>;
     const hasValidType = approvalToPublishOptions?.type && approvalToPublishOptions.type !== 'none';
     const isCTAEnabled = hasValidType && isPendingApproval;
 

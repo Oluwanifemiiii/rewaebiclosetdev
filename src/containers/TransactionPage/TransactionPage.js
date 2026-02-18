@@ -620,6 +620,12 @@ export const TransactionPageComponent = props => {
   const hasViewingRights = currentUser && hasPermissionToViewData(currentUser);
 
   const txBookingMaybe = booking?.id ? { booking, timeZone } : {};
+  // ✅ Check if seller is manual to determine display currency
+  const txProvider = transaction?.provider;
+  const txSellerType = txProvider?.attributes?.profile?.publicData?.sellerType;
+  const txIsManualSeller = txSellerType === 'manual';
+  const txDisplayCurrency = txIsManualSeller ? 'NGN' : config.currency;
+
   const orderBreakdownMaybe = hasLineItems
     ? {
         orderBreakdown: (
@@ -628,7 +634,7 @@ export const TransactionPageComponent = props => {
             userRole={transactionRole}
             transaction={transaction}
             {...txBookingMaybe}
-            currency={config.currency}
+            currency={txDisplayCurrency}  // ✅ NGN for manual sellers!
             marketplaceName={config.marketplaceName}
           />
         ),

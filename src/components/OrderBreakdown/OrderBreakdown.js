@@ -48,6 +48,17 @@ export const OrderBreakdownComponent = props => {
 
   const isCustomer = userRole === 'customer';
   const isProvider = userRole === 'provider';
+
+  // ✅ Check if seller is manual (Nigerian) and override currency to NGN
+  const author = transaction?.listing?.author || transaction?.provider;
+  const sellerType = author?.attributes?.profile?.publicData?.sellerType;
+  const isManualSeller = sellerType === 'manual';
+  
+  // Use NGN for manual sellers, otherwise use the provided currency (USD)
+  const displayCurrency = isManualSeller ? 'NGN' : currency;
+  
+
+
   const allLineItems = transaction.attributes.lineItems || [];
   // We'll show only line-items that are specific for the current userRole (customer vs provider)
   const lineItems = allLineItems.filter(lineItem => lineItem.includeFor.includes(userRole));
@@ -123,9 +134,9 @@ export const OrderBreakdownComponent = props => {
         code={lineItemUnitType}
         userRole={userRole}
         intl={intl}
-        marketplaceCurrency={currency}
+        marketplaceCurrency={displayCurrency} // ✅ Use displayCurrency instead of currency
       />
-      <LineItemRefundMaybe lineItems={lineItems} intl={intl} marketplaceCurrency={currency} />
+      <LineItemRefundMaybe lineItems={lineItems} intl={intl} marketplaceCurrency={displayCurrency} /> {/* ✅ */}
 
       <LineItemCustomerCommissionMaybe
         lineItems={lineItems}
@@ -153,7 +164,7 @@ export const OrderBreakdownComponent = props => {
         intl={intl}
       />
 
-      <LineItemTotalPrice transaction={transaction} isProvider={isProvider} intl={intl} />
+      <LineItemTotalPrice transaction={transaction} isProvider={isProvider} intl={intl} currency={displayCurrency} />
 
       {hasCommissionLineItem ? (
         <span className={css.feeInfo}>

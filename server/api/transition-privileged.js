@@ -18,7 +18,11 @@ const {
 
 const { Money } = sharetribeSdk.types;
 
-const transactionPromise = (sdk, id) => sdk.transactions.show({ id, include: ['listing'] });
+const transactionPromise = (sdk, id) => 
+  sdk.transactions.show({ 
+    id, 
+    include: ['listing', 'listing.author']  // ✅ Add listing.author
+  });
 const getListingRelationShip = transactionShowAPIData => {
   const { data, included } = transactionShowAPIData;
   const { relationships } = data;
@@ -80,36 +84,66 @@ module.exports = (req, res) => {
 
   Promise.all([transactionPromise(sdk, bodyParams?.id), fetchCommission(sdk)])
     .then(responses => {
-      const [showTransactionResponse, fetchAssetsResponse] = responses;
-      const transaction = showTransactionResponse.data.data;
-      const listing = getListingRelationShip(showTransactionResponse.data);
-      const commissionAsset = fetchAssetsResponse.data.data[0];
+  const [showTransactionResponse, fetchAssetsResponse] = responses;
+  const transaction = showTransactionResponse.data.data;
+  const listing = getListingRelationShip(showTransactionResponse.data);
+  const commissionAsset = fetchAssetsResponse.data.data[0];
 
-      const existingMetadata = transaction?.attributes?.metadata;
-      const existingOffers = existingMetadata?.offers || [];
-      const transitions = transaction.attributes.transitions;
+  const existingMetadata = transaction?.attributes?.metadata;
+  const existingOffers = existingMetadata?.offers || [];
+  const transitions = transaction.attributes.transitions;
 
-      // Check if the transition is related to negotiation offers and if the offers are valid
-      throwErrorIfNegotiationOfferHasInvalidHistory(transitionName, existingOffers, transitions);
+  throwErrorIfNegotiationOfferHasInvalidHistory(transitionName, existingOffers, transitions);
 
-      const currency =
-        transaction.attributes.payinTotal?.currency ||
-        listing.attributes.price?.currency ||
-        orderData.currency;
-      const { providerCommission, customerCommission } =
-        commissionAsset?.type === 'jsonAsset' ? commissionAsset.attributes.data : {};
+  // ✅ Check if manual seller
+  const author = showTransactionResponse.data.included?.find(
+    item => item.type === 'user' && item.id.uuid === listing?.relationships?.author?.data?.id?.uuid
+  );
+  const sellerType = author?.attributes?.profile?.publicData?.sellerType;
+  const isManualSeller = sellerType === 'manual';
 
-      lineItems = transactionLineItems(
-        listing,
-        getFullOrderData(orderData, bodyParams, currency, existingOffers),
-        providerCommission,
-        customerCommission
-      );
 
-      metadataMaybe = getUpdatedMetadata(orderData, transitionName, existingMetadata);
 
-      return getTrustedSdk(req);
-    })
+  const currency =
+    orderData.currency ||
+    transaction.attributes.payinTotal?.currency ||
+    listing.attributes.price?.currency ||
+    'USD';
+
+  
+
+  // ✅ For manual sellers, create simple line items without commission
+  if (isManualSeller) {
+    console.log('✅ Manual seller - creating line items without Stripe commission');
+    const { offerInSubunits } = orderData || {};
+    
+    lineItems = [
+      {
+        code: 'line-item/item',
+        unitPrice: { amount: offerInSubunits, currency: currency },
+        quantity: 1,
+        includeFor: ['customer', 'provider'],
+      },
+    ];
+  } else {
+    console.log('Regular seller - using commission-based line items');
+    const { providerCommission, customerCommission } =
+      commissionAsset?.type === 'jsonAsset' ? commissionAsset.attributes.data : {};
+
+    lineItems = transactionLineItems(
+      listing,
+      getFullOrderData(orderData, bodyParams, currency, existingOffers),
+      providerCommission,
+      customerCommission
+    );
+  }
+
+
+
+  metadataMaybe = getUpdatedMetadata(orderData, transitionName, existingMetadata);
+
+  return getTrustedSdk(req);
+})
     .then(trustedSdk => {
       // Omit listingId from params (transition/request-payment-after-inquiry does not need it)
       const { listingId, ...restParams } = bodyParams?.params || {};

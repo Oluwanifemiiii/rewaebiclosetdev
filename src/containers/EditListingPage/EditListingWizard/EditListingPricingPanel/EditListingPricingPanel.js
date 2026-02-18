@@ -89,8 +89,9 @@ const getOptimisticListing = (listing, updateValues) => {
  * @returns {JSX.Element}
  */
 const EditListingPricingPanel = props => {
-  const [state, setState] = useState({ initialValues: getInitialValues(props) });
 
+  
+  const [state, setState] = useState({ initialValues: getInitialValues(props) });
   const {
     className,
     rootClassName,
@@ -227,6 +228,7 @@ const EditListingPricingPanel = props => {
           updated={panelUpdated}
           updateInProgress={updateInProgress}
           fetchErrors={errors}
+          currentUser={props.currentUser}
         />
       ) : (
         <div className={css.priceCurrencyInvalid}>

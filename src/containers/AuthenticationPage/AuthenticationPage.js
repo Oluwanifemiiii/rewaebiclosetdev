@@ -206,30 +206,43 @@ export const AuthenticationForms = props => {
   ];
 
   const handleSubmitSignup = values => {
-    const { userType, email, password, fname, lname, displayName, ...rest } = values;
-    const displayNameMaybe = displayName ? { displayName: displayName.trim() } : {};
+  console.log('=== SIGNUP DEBUG ===');
+  console.log('All form values:', values);
+  console.log('isNigerianSeller value:', values.isNigerianSeller);
+  console.log('===================');
 
-    const params = {
-      email,
-      password,
-      firstName: fname.trim(),
-      lastName: lname.trim(),
-      ...displayNameMaybe,
-      publicData: {
-        userType,
-        ...pickUserFieldsData(rest, 'public', userType, userFields),
-      },
-      privateData: {
-        ...pickUserFieldsData(rest, 'private', userType, userFields),
-      },
-      protectedData: {
-        ...pickUserFieldsData(rest, 'protected', userType, userFields),
-        ...getNonUserFieldParams(rest, userFields),
-      },
-    };
+  const { userType, email, password, fname, lname, displayName, isNigerianSeller, ...rest } = values;
+  const displayNameMaybe = displayName ? { displayName: displayName.trim() } : {};
 
-    submitSignup(params);
+  // ✅ Extract the value from the array and check if it's truthy
+  const isNigerian = Array.isArray(isNigerianSeller) && isNigerianSeller.length > 0;
+  
+  console.log('isNigerian (processed):', isNigerian);
+
+  const params = {
+    email,
+    password,
+    firstName: fname.trim(),
+    lastName: lname.trim(),
+    ...displayNameMaybe,
+    publicData: {
+      userType,
+      ...pickUserFieldsData(rest, 'public', userType, userFields),
+      // ✅ Add AFTER pickUserFieldsData so it doesn't get overwritten
+      ...(isNigerian ? { sellerType: 'manual' } : {}),
+    },
+    privateData: {
+      ...pickUserFieldsData(rest, 'private', userType, userFields),
+    },
+    protectedData: {
+      ...pickUserFieldsData(rest, 'protected', userType, userFields),
+      ...getNonUserFieldParams(rest, userFields),
+    },
   };
+
+
+  submitSignup(params);
+};
 
   const loginErrorMessage = (
     <div className={css.error}>

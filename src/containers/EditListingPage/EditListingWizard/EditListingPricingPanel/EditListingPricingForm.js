@@ -87,41 +87,60 @@ const ErrorMessages = props => {
  * @param {boolean} [props.updated] - Whether the form is updated
  * @param {boolean} [props.updateInProgress] - Whether the form is updating
  * @param {Object} [props.fetchErrors] - The fetch errors
+ * @param {propTypes.currentUser} [props.currentUser] - The current user
  * @returns {JSX.Element}
  */
-export const EditListingPricingForm = props => (
-  <FinalForm
-    mutators={{ ...arrayMutators }}
-    {...props}
-    render={formRenderProps => {
-      const {
-        formId = 'EditListingPricingForm',
-        form: formApi,
-        autoFocus,
-        className,
-        rootClassName,
-        disabled,
-        ready,
-        handleSubmit,
-        marketplaceCurrency,
-        unitType,
-        listingTypeConfig,
-        isPriceVariationsInUse,
-        listingMinimumPriceSubUnits = 0,
-        invalid,
-        pristine,
-        saveActionMsg,
-        updated,
-        updateInProgress = false,
-        fetchErrors,
-        initialValues: formInitialValues,
-        values: formValues,
-      } = formRenderProps;
+export const EditListingPricingForm = props => {
+  const { currentUser } = props; // ✅ Extract currentUser BEFORE FinalForm
+  
+  return (
+    <FinalForm
+      mutators={{ ...arrayMutators }}
+      {...props}
+      render={formRenderProps => {
+        const {
+          formId = 'EditListingPricingForm',
+          form: formApi,
+          autoFocus,
+          className,
+          rootClassName,
+          disabled,
+          ready,
+          handleSubmit,
+          marketplaceCurrency,
+          unitType,
+          listingTypeConfig,
+          isPriceVariationsInUse,
+          listingMinimumPriceSubUnits = 0,
+          invalid,
+          pristine,
+          saveActionMsg,
+          updated,
+          updateInProgress = false,
+          fetchErrors,
+          initialValues: formInitialValues,
+          values: formValues,
+        } = formRenderProps;
 
       const intl = useIntl();
+
+      // ✅ Check if current user is a manual seller
+      const sellerType = currentUser?.attributes?.profile?.publicData?.sellerType;
+      const isManualSeller = sellerType === 'manual';
+      
+      // ✅ Use NGN for manual sellers, USD for others
+      const displayCurrency = isManualSeller ? 'NGN' : marketplaceCurrency;
+
+      console.log('=== EditListingPricingForm ===');
+      console.log('Seller type:', sellerType);
+      console.log('Is manual seller?', isManualSeller);
+      console.log('Marketplace currency:', marketplaceCurrency);
+      console.log('Display currency:', displayCurrency);
+      console.log('==============================');
+
       const priceValidators = getPriceValidators(
         listingMinimumPriceSubUnits,
-        marketplaceCurrency,
+        displayCurrency, // ✅ Use displayCurrency for validation
         intl
       );
 
@@ -135,7 +154,11 @@ export const EditListingPricingForm = props => (
 
       const isFixedLengthBooking = isBooking && unitType === FIXED;
       const isBookingPriceVariationsInUse = isBooking && isPriceVariationsInUse;
-      const isUsingPriceVariants = isFixedLengthBooking || isBookingPriceVariationsInUse;
+      
+      // ✅ Force simple pricing for manual sellers (BookingPriceVariants doesn't support NGN well)
+      const isUsingPriceVariants = isManualSeller 
+        ? false 
+        : (isFixedLengthBooking || isBookingPriceVariationsInUse);
 
       return (
         <Form onSubmit={handleSubmit} className={classes}>
@@ -147,7 +170,7 @@ export const EditListingPricingForm = props => (
               formApi={formApi}
               autoFocus={autoFocus}
               className={css.input}
-              marketplaceCurrency={marketplaceCurrency}
+              marketplaceCurrency={displayCurrency} // ✅ Pass displayCurrency
               unitType={unitType}
               isPriceVariationsInUse={isBookingPriceVariationsInUse}
               initialLengthOfPriceVariants={formInitialValues?.priceVariants?.length || 0}
@@ -166,7 +189,7 @@ export const EditListingPricingForm = props => (
               placeholder={intl.formatMessage({
                 id: 'EditListingPricingForm.priceInputPlaceholder',
               })}
-              currencyConfig={appSettings.getCurrencyFormatting(marketplaceCurrency)}
+              currencyConfig={appSettings.getCurrencyFormatting(displayCurrency)} // ✅ Use displayCurrency
               validate={priceValidators}
             />
           )}
@@ -193,6 +216,7 @@ export const EditListingPricingForm = props => (
       );
     }}
   />
-);
+  );
+};
 
 export default EditListingPricingForm;

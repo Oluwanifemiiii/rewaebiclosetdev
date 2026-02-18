@@ -210,6 +210,7 @@ const EditListingWizardTab = props => {
           {...panelProps(PRICING_AND_STOCK)}
           marketplaceCurrency={config.currency}
           listingMinimumPriceSubUnits={config.listingMinimumPriceSubUnits}
+          currentUser={props.currentUser}
         />
       );
     }
@@ -219,6 +220,7 @@ const EditListingWizardTab = props => {
           {...panelProps(PRICING)}
           marketplaceCurrency={config.currency}
           listingMinimumPriceSubUnits={config.listingMinimumPriceSubUnits}
+          currentUser={props.currentUser}
         />
       );
     }

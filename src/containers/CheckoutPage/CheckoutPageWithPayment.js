@@ -16,7 +16,7 @@ import {
   NEGOTIATION_PROCESS_NAME,
   PURCHASE_PROCESS_NAME,
 } from '../../transactions/transaction';
-import { setInitialValues } from '../../containers/TransactionPage/TransactionPage.duck' 
+import { setInitialValues } from '../../containers/TransactionPage/TransactionPage.duck';
 // Import shared components
 import { H3, H4, NamedLink, OrderBreakdown, Page, TopbarSimplified } from '../../components';
 
@@ -212,20 +212,91 @@ export const loadInitialDataForStripePayments = ({
   config,
 }) => {
   // Fetch currentUser with stripeCustomer entity
-  // Note: since there's need for data loading in "componentWillMount" function,
-  //       this is added here instead of loadData static function.
   fetchStripeCustomer();
 
-  // Fetch speculated transaction for showing price in order breakdown
-  // NOTE: if unit type is line-item/item, quantity needs to be added.
-  // The way to pass it to checkout page is through pageData.orderData
-  const shippingDetails = {};
-  const optionalPaymentParams = {};
-  const orderParams = getOrderParams(pageData, shippingDetails, optionalPaymentParams, config);
+  // ✅ Check if seller is manual
+  const author = pageData?.listing?.author;
+  const sellerType = author?.attributes?.profile?.publicData?.sellerType;
+  const isManualSeller = sellerType === 'manual';
 
-  fetchSpeculatedTransactionIfNeeded(orderParams, pageData, fetchSpeculatedTransaction);
+
+  if (!isManualSeller) {
+    // ✅ Regular Stripe flow - fetch speculated transaction
+    const shippingDetails = {};
+    const optionalPaymentParams = {};
+    const orderParams = getOrderParams(pageData, shippingDetails, optionalPaymentParams, config);
+    fetchSpeculatedTransactionIfNeeded(orderParams, pageData, fetchSpeculatedTransaction);
+  } else {
+    // ✅ Manual seller - create a client-side speculated transaction for display purposes
+    console.log('✅ Manual seller - creating client-side speculated transaction');
+    
+    const listing = pageData?.listing;
+    const bookingDates = pageData?.orderData?.bookingDates;
+    
+    if (!bookingDates || !listing) {
+      console.log('No booking dates or listing - skipping speculation');
+      return;
+    }
+
+    // Calculate the number of units (days/nights/hours)
+    const unitType = listing.attributes.publicData?.unitType;
+    const price = listing.attributes.price;
+    
+    if (!price || !unitType) {
+      console.log('No price or unitType - skipping');
+      return;
+    }
+
+    const start = new Date(bookingDates.bookingStart);
+    const end = new Date(bookingDates.bookingEnd);
+    
+    let quantity = 1;
+    if (unitType === 'day') {
+      quantity = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+    } else if (unitType === 'night') {
+      quantity = Math.floor((end - start) / (1000 * 60 * 60 * 24));
+    } else if (unitType === 'hour') {
+      quantity = Math.ceil((end - start) / (1000 * 60 * 60));
+    }
+
+    console.log('Booking calculation:', {
+      unitType,
+      start,
+      end,
+      quantity,
+      pricePerUnit: price.amount,
+    });
+
+    // ✅ Create a fake speculated transaction for display
+    // This won't be sent to Stripe - it's just for showing the breakdown
+    const lineTotal = price.amount * quantity;
+    
+    const fakeSpeculatedTransaction = {
+      id: { uuid: 'client-side-speculate' },
+      type: 'transaction',
+      attributes: {
+        lineItems: [
+          {
+            code: `line-item/${unitType}`,
+            unitPrice: { amount: price.amount, currency: 'NGN' },
+            quantity: quantity,
+            lineTotal: { amount: lineTotal, currency: 'NGN' },
+            includeFor: ['customer', 'provider'],
+            reversal: false,
+          },
+        ],
+        payinTotal: { amount: lineTotal, currency: 'NGN' },
+        payoutTotal: { amount: lineTotal, currency: 'NGN' },
+      },
+    };
+
+    
+    if (pageData) {
+      pageData.speculatedTransaction = fakeSpeculatedTransaction;
+    }
+  }
+
 };
-
 const onStripeInitialized = (stripe, process, props) => {
   const { paymentIntent, onRetrievePaymentIntent, pageData } = props;
   const tx = pageData?.transaction || null;
@@ -313,7 +384,6 @@ export const CheckoutPageWithPayment = props => {
     title,
     config,
   } = props;
-
 
   const handleSubmit = values => {
     if (submitting) return;
@@ -405,65 +475,154 @@ export const CheckoutPageWithPayment = props => {
       });
   };
 
-const USD_TO_NGN_RATE = 1490;
+ const USD_TO_NGN_RATE = 1490;
 
-const getPaystackAmountFromListing = listing => {
-  if (!listing) return null;
-  
-  console.log('=== PRICE DEBUG ===');
-  console.log('listing.attributes.price:', listing.attributes?.price);
-  console.log('listing.attributes.publicData:', listing.attributes?.publicData);
-  console.log('==================');
-  
+/**
+ * Calculate the correct Paystack amount based on seller type
+ * 
+ * @param {Object} listing - The listing object with author information
+ * @param {Object} transaction - Optional transaction object (for negotiations with line items)
+ * @returns {number|null} - Amount in kobo (NGN subunits) or null if calculation fails
+ */
+const getPaystackAmountFromListing = (listing, transaction = null) => {
+  if (!listing) return null;  
   const publicData = listing.attributes?.publicData || {};
-  const listingType = publicData.listingType; // ✅ Check listing type
+  const listingType = publicData.listingType;
+  
+  // ✅ Check if seller is Nigerian (manual seller)
+  const author = listing?.author;
+  const sellerType = author?.attributes?.profile?.publicData?.sellerType;
+  const isManualSeller = sellerType === 'manual';
+  
+  
+  // ✅ 0) For negotiations, check transaction line items first (this is the agreed price)
+  if (transaction?.attributes?.lineItems) {
+    const lineItems = transaction.attributes.lineItems;
+    const lineTotal = lineItems?.[0]?.lineTotal;
+    
+    console.log('Transaction has line items - using agreed price from negotiation');
+    console.log('Line total:', lineTotal);
+    
+    if (lineTotal && typeof lineTotal.amount === 'number') {
+      const amount = lineTotal.amount;
+      const currency = lineTotal.currency;
+      
+      console.log('Line total amount:', amount);
+      console.log('Line total currency:', currency);
+      
+      if (isManualSeller) {
+        // Nigerian seller - amount is already in NGN (kobo)
+        console.log('✅ Manual seller - line total is in NGN');
+        console.log('   Amount:', amount / 100, 'NGN');
+        console.log('   In kobo:', amount);
+        console.log('========================================');
+        return amount;
+      } else {
+        // International seller - convert from USD to NGN
+        if (currency === 'USD') {
+          const usdCents = amount;
+          const usdWhole = usdCents / 100;
+          const ngn = usdWhole * USD_TO_NGN_RATE;
+          const kobo = Math.round(ngn * 100);
+          console.log('💵 International seller - converting line total');
+          console.log('   From:', usdWhole, 'USD');
+          console.log('   To:', ngn, 'NGN (', kobo, 'kobo)');
+          console.log('========================================');
+          return kobo;
+        } else if (currency === 'NGN') {
+          console.log('✅ Line total already in NGN:', amount, 'kobo');
+          console.log('========================================');
+          return amount;
+        }
+      }
+    }
+  }
   
   // ✅ 1) Check for explicit Paystack price in NGN (highest priority)
   if (publicData.paystackPriceNgn) {
     const maybe = Number(publicData.paystackPriceNgn);
     if (!Number.isNaN(maybe) && isFinite(maybe) && maybe > 0) {
-      console.log('Using paystackPriceNgn:', maybe, 'NGN');
-      return Math.round(maybe * 100);
+      console.log('✅ Using paystackPriceNgn:', maybe, 'NGN');
+      const kobo = Math.round(maybe * 100);
+      console.log('Amount in kobo:', kobo);
+      console.log('========================================');
+      return kobo;
     }
   }
 
-  // ✅ 2) Use the standard price field (this is the rental price for rentals, sale price for sales)
+  // ✅ 2) Use the standard price field
   const price = listing.attributes?.price;
   if (price && typeof price.amount === 'number') {
-    const usdCents = price.amount;
-    const usdWhole = usdCents / 100;
-    console.log('Using listing.attributes.price:', usdWhole, 'USD');
-    console.log('Listing type:', listingType);
+    const priceCents = price.amount;
+    const priceWhole = priceCents / 100;
+    const priceCurrency = price.currency;
     
-    if (!Number.isNaN(usdWhole) && isFinite(usdWhole) && usdWhole > 0) {
-      const ngn = usdWhole * USD_TO_NGN_RATE;
-      const kobo = Math.round(ngn * 100);
-      console.log('Converted to NGN:', ngn, 'NGN (', kobo, 'kobo)');
-      return kobo;
+    console.log('---');
+    console.log('Price object found:');
+    console.log('  - Amount (in subunits):', priceCents);
+    console.log('  - Amount (whole):', priceWhole);
+    console.log('  - Currency:', priceCurrency);
+    console.log('---');
+    
+    if (!Number.isNaN(priceWhole) && isFinite(priceWhole) && priceWhole > 0) {
+      if (isManualSeller) {
+        // ✅ Nigerian seller - price is ALREADY in NGN, no conversion needed!
+        console.log('✅ Nigerian seller detected!');
+        console.log('✅ Price is ALREADY in NGN - NO CONVERSION');
+        console.log('   Price entered by seller:', priceWhole, 'NGN');
+        console.log('   Stored as:', priceCents, 'kobo (subunits)');
+        console.log('   Sending to Paystack:', priceCents, 'kobo');
+        console.log('========================================');
+        return priceCents; // Already in kobo (NGN subunits)
+      } else {
+        // ✅ International seller - price is in USD, convert to NGN
+        console.log('💵 International seller detected!');
+        console.log('💵 Price is in USD - CONVERTING to NGN');
+        console.log('   Price in USD:', priceWhole, 'USD');
+        const ngn = priceWhole * USD_TO_NGN_RATE;
+        const kobo = Math.round(ngn * 100);
+        console.log('   Converted to NGN:', ngn, 'NGN');
+        console.log('   In kobo:', kobo, 'kobo');
+        console.log('   Sending to Paystack:', kobo, 'kobo');
+        console.log('========================================');
+        return kobo;
+      }
     }
   }
 
-  // ✅ 3) Fallback: Try publicData.value (this is usually the sale price)
+  // ✅ 3) Fallback: Try publicData.value (for older listings)
   if (publicData.value) {
-    const usdValue = Number(publicData.value);
-    if (!Number.isNaN(usdValue) && isFinite(usdValue) && usdValue > 0) {
-      console.log('Fallback: Using publicData.value:', usdValue, 'USD');
-      
-      const ngnValue = usdValue * USD_TO_NGN_RATE;
-      const kobo = Math.round(ngnValue * 100);
-      
-      console.log('Converted to NGN:', ngnValue, 'NGN (', kobo, 'kobo)');
-      return kobo;
+    const value = Number(publicData.value);
+    console.log('---');
+    console.log('Fallback: Using publicData.value:', value);
+    console.log('---');
+    
+    if (!Number.isNaN(value) && isFinite(value) && value > 0) {
+      if (isManualSeller) {
+        // Nigerian seller - value is in NGN
+        console.log('✅ Nigerian seller - value is in NGN:', value, 'NGN');
+        const kobo = Math.round(value * 100);
+        console.log('Amount in kobo:', kobo);
+        console.log('========================================');
+        return kobo;
+      } else {
+        // International seller - value is in USD
+        console.log('💵 International seller - value is in USD:', value, 'USD');
+        const ngnValue = value * USD_TO_NGN_RATE;
+        const kobo = Math.round(ngnValue * 100);
+        console.log('Converted to NGN:', ngnValue, 'NGN (', kobo, 'kobo)');
+        console.log('========================================');
+        return kobo;
+      }
     }
   }
 
-  console.error('Could not find valid price in listing:', listing);
   return null;
 };
 
-const handlePaystackPayment = async () => {
+  const handlePaystackPayment = async () => {
   if (paystackProcessing) return;
-  
+
   try {
     if (!currentUser || !currentUser.id) {
       alert('Please log in to complete your purchase.');
@@ -492,23 +651,24 @@ const handlePaystackPayment = async () => {
     } else if (isAcceptingOffer) {
       // ACCEPTING OFFER
       paystackRef = `REWA-${Date.now()}`;
-      const lineItems = existingTransaction.attributes?.lineItems;
-      const lineTotal = lineItems?.[0]?.lineTotal;
 
-      if (lineTotal?.currency === 'USD') {
-        const usdCents = lineTotal.amount;
-        const usdWhole = usdCents / 100;
-        const ngn = usdWhole * 1490;
-        amountInKobo = Math.round(ngn * 100);
-      } else if (lineTotal?.currency === 'NGN') {
-        amountInKobo = lineTotal.amount;
-      } else {
-        alert('Unsupported currency');
+      // ✅ Use the smart detection function instead of manual conversion
+      const listing = pageData?.listing;
+      amountInKobo = getPaystackAmountFromListing(listing, existingTransaction);
+
+      if (!amountInKobo || amountInKobo <= 0) {
+        alert('Could not calculate payment amount');
         return;
       }
 
+      console.log(
+        '✅ Amount for accepting offer:',
+        amountInKobo,
+        'kobo (₦' + amountInKobo / 100 + ')'
+      );
+
       try {
-        const response = await fetch('http://localhost:3500/api/transition-to-paystack-payment', {
+        const response = await fetch('/api/transition-to-paystack-payment', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -530,6 +690,7 @@ const handlePaystackPayment = async () => {
         return;
       }
     } else {
+      // NEW PURCHASE/BOOKING
       paystackRef = `REWA-${Date.now()}`;
       const listing = pageData?.listing;
       if (!listing) {
@@ -537,13 +698,7 @@ const handlePaystackPayment = async () => {
         return;
       }
 
-      console.log('=== AMOUNT CALCULATION ===');
-      console.log('pageData:', pageData);
-      console.log('Has speculated transaction in pageData?', !!pageData?.speculatedTransaction);
-      console.log('Has speculated transaction in props?', !!props.speculatedTransaction);
-      console.log('Using speculatedTransaction:', speculatedTransaction);
-      console.log('Speculated lineItems:', speculatedTransaction?.attributes?.lineItems);
-
+      // ✅ For bookings, ALWAYS use speculated transaction line items (includes date calculation)
       if (speculatedTransaction?.attributes?.lineItems) {
         const lineItems = speculatedTransaction.attributes.lineItems;
         console.log('All line items:', lineItems);
@@ -555,17 +710,42 @@ const handlePaystackPayment = async () => {
         console.log('Main line item:', mainLineItem);
 
         if (mainLineItem?.lineTotal) {
-          const usdCents = mainLineItem.lineTotal.amount;
-          const usdWhole = usdCents / 100;
-          console.log('✅ CORRECT AMOUNT - Using speculated lineTotal:', usdWhole, 'USD');
-          const ngn = usdWhole * 1490;
-          amountInKobo = Math.round(ngn * 100);
-          console.log('Converted to Paystack:', amountInKobo, 'kobo (₦' + amountInKobo / 100 + ')');
+          // ✅ Check if seller is manual to determine if conversion is needed
+          const author = listing?.author;
+          const sellerType = author?.attributes?.profile?.publicData?.sellerType;
+          const isManualSeller = sellerType === 'manual';
+          
+          const lineTotalAmount = mainLineItem.lineTotal.amount;
+          const lineTotalCurrency = mainLineItem.lineTotal.currency;
+          
+          if (isManualSeller) {
+            // ✅ Manual seller - amount is ALREADY in NGN (kobo)
+            amountInKobo = lineTotalAmount;
+            console.log('✅ Manual seller - using line total as-is (NGN):', amountInKobo, 'kobo (₦' + (amountInKobo/100) + ')');
+          } else {
+            // ✅ International seller - convert from USD to NGN
+            if (lineTotalCurrency === 'USD') {
+              const usdCents = lineTotalAmount;
+              const usdWhole = usdCents / 100;
+              const ngn = usdWhole * 1490;
+              amountInKobo = Math.round(ngn * 100);
+              console.log('💵 International seller - converting:', usdWhole, 'USD →', ngn, 'NGN (', amountInKobo, 'kobo)');
+            } else if (lineTotalCurrency === 'NGN') {
+              amountInKobo = lineTotalAmount;
+              console.log('✅ Already in NGN:', amountInKobo, 'kobo');
+            } else {
+              alert('Unsupported currency: ' + lineTotalCurrency);
+              return;
+            }
+          }
+          
+          console.log('Final amount for Paystack:', amountInKobo, 'kobo (₦' + (amountInKobo/100) + ')');
         } else {
           alert('Could not calculate booking price');
           return;
         }
       } else {
+        // ✅ Fallback for non-bookings (purchases)
         console.log('No speculated transaction, using listing price');
         amountInKobo = getPaystackAmountFromListing(listing);
       }
@@ -584,9 +764,6 @@ const handlePaystackPayment = async () => {
         ? 'default-booking/release-1'
         : 'default-purchase-paystack/release-1';
 
-      console.log('Listing type:', publicData.listingType);
-      console.log('Transaction process:', transactionProcessAlias);
-      console.log('Using process:', processAlias);
 
       // ✅ Get unitType from listing
       const unitType = publicData.unitType;
@@ -607,7 +784,7 @@ const handlePaystackPayment = async () => {
           : {};
 
       try {
-        const response = await fetch('http://localhost:3500/api/initiate-transaction', {
+        const response = await fetch('/api/initiate-transaction', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -625,11 +802,11 @@ const handlePaystackPayment = async () => {
 
         const result = await response.json();
 
-        console.log('API Response:', result); // ✅ Add this
-        console.log('Response status:', response.status); // ✅ Add this
+        console.log('API Response:', result);
+        console.log('Response status:', response.status);
 
         if (!response.ok || !result.success) {
-          console.error('Full error response:', result); // ✅ Add this
+          console.error('Full error response:', result);
           throw new Error(result.message || 'Failed to create transaction');
         }
 
@@ -670,7 +847,11 @@ const handlePaystackPayment = async () => {
       onClose: handlePaystackClose,
     });
 
-    console.log('Opening Paystack with amount:', amountInKobo, 'kobo (₦' + (amountInKobo/100) + ')');
+    console.log(
+      'Opening Paystack with amount:',
+      amountInKobo,
+      'kobo (₦' + amountInKobo / 100 + ')'
+    );
     handler.openIframe();
   } catch (err) {
     console.error('Payment error:', err);
@@ -679,43 +860,39 @@ const handlePaystackPayment = async () => {
   }
 };
 
-const verifyPaystackPayment = async (reference, transactionId) => {
-  const { routeConfiguration } = props;
+  const verifyPaystackPayment = async (reference, transactionId) => {
+    const { routeConfiguration } = props;
 
-  try {
-    console.log('Verifying payment...', reference, transactionId);
-    
-    const res = await fetch("http://localhost:3500/api/paystack/verify", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: 'include',
-      body: JSON.stringify({ reference, transactionId }),
-    });
+    try {
+      console.log('Verifying payment...', reference, transactionId);
 
-    const data = await res.json();
-    console.log('Verification response:', data);
-
-    if (data.success && data.transaction) {
-      // ✅ Wait 2 seconds for the backend to fully process
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const orderPath = pathByRouteName("OrderDetailsPage", routeConfiguration, {
-        id: data.transaction.id.uuid,
+      const res = await fetch('/api/paystack/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ reference, transactionId }),
       });
-      
-      console.log('Redirecting to:', orderPath);
-      window.location.href = orderPath;
-      
-    } else {
-      console.error('Verification failed:', data);
-      alert(data.message || "Payment verification failed");
-    }
-  } catch (error) {
-    console.error('Verification error:', error);
-    alert("Payment verification failed: " + error.message);
-  }
-};
 
+      const data = await res.json();
+      console.log('Verification response:', data);
+
+      if (data.success && data.transaction) {
+        // ✅ Wait 2 seconds for the backend to fully process
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        const orderPath = pathByRouteName('OrderDetailsPage', routeConfiguration, {
+          id: data.transaction.id.uuid,
+        });
+        window.location.href = orderPath;
+      } else {
+        console.error('Verification failed:', data);
+        alert(data.message || 'Payment verification failed');
+      }
+    } catch (error) {
+      console.error('Verification error:', error);
+      alert('Payment verification failed: ' + error.message);
+    }
+  };
 
   const paymentMethod = pageData?.orderData?.paymentMethod || 'stripe';
   const isPaystack = paymentMethod === 'paystack';
@@ -748,17 +925,23 @@ const verifyPaystackPayment = async (reference, transactionId) => {
 
   // Show breakdown only when (speculated?) transaction is loaded
   // (i.e. it has an id and lineItems)
-  const breakdown =
-    tx.id && tx.attributes.lineItems?.length > 0 ? (
-      <OrderBreakdown
-        className={css.orderBreakdown}
-        userRole="customer"
-        transaction={tx}
-        {...txBookingMaybe}
-        currency={config.currency}
-        marketplaceName={config.marketplaceName}
-      />
-    ) : null;
+  // ✅ Detect manual seller and use correct currency
+const author = listing?.author;
+const sellerType = author?.attributes?.profile?.publicData?.sellerType;
+const isManualSeller = sellerType === 'manual';
+const displayCurrency = isManualSeller ? 'NGN' : config.currency;
+
+const breakdown =
+  tx.id && tx.attributes.lineItems?.length > 0 ? (
+    <OrderBreakdown
+      className={css.orderBreakdown}
+      userRole="customer"
+      transaction={tx}
+      {...txBookingMaybe}
+      currency={displayCurrency}  // ✅ NGN for manual sellers!
+      marketplaceName={config.marketplaceName}
+    />
+  ) : null;
 
   const totalPrice =
     tx?.attributes?.lineItems?.length > 0 ? getFormattedTotalPrice(tx, intl) : null;
@@ -767,13 +950,12 @@ const verifyPaystackPayment = async (reference, transactionId) => {
   const transitions = process.transitions;
   const isPaymentExpired = hasPaymentExpired(existingTransaction, process, isClockInSync);
 
-  // Allow showing page when currentUser is still being downloaded,
-  // but show payment form only when user info is loaded.
+
   const showPaymentForm = !!(
     currentUser &&
     !listingNotFound &&
     !initiateOrderError &&
-    !speculateTransactionError &&
+    (isManualSeller || !speculateTransactionError) && // ✅ Ignore speculate error for manual sellers
     !retrievePaymentIntentError &&
     !isPaymentExpired
   );
@@ -794,7 +976,7 @@ const verifyPaystackPayment = async (reference, transactionId) => {
     initiateOrderError,
     isPaymentExpired,
     retrievePaymentIntentError,
-    speculateTransactionError,
+    isManualSeller ? null : speculateTransactionError, // ✅ Now it's defined!
     listingLink
   );
 
@@ -837,29 +1019,28 @@ const verifyPaystackPayment = async (reference, transactionId) => {
   // ensures it is supported by Stripe, as indicated by the 'stripe' parameter.
   // If using a transaction process without any stripe actions, leave out the 'stripe' parameter.
   const currency =
-    existingTransaction?.attributes?.payinTotal?.currency || listing.attributes.price?.currency;
-  const isStripeCompatibleCurrency = isValidCurrencyForTransactionProcess(
-    transactionProcessAlias,
-    currency,
-    'stripe'
-  );
+  existingTransaction?.attributes?.payinTotal?.currency || listing.attributes.price?.currency;
+const isStripeCompatibleCurrency = isValidCurrencyForTransactionProcess(
+  transactionProcessAlias,
+  currency,
+  'stripe'
+);
 
-  // Render an error message if the listing is using a non Stripe supported currency
-  // and is using a transaction process with Stripe actions (default-booking or default-purchase)
-  if (!isStripeCompatibleCurrency) {
-    return (
-      <Page title={title} scrollingDisabled={scrollingDisabled}>
-        <TopbarSimplified />
-        <div className={css.contentContainer}>
-          <section className={css.incompatibleCurrency}>
-            <H4 as="h1" className={css.heading}>
-              <FormattedMessage id="CheckoutPage.incompatibleCurrency" />
-            </H4>
-          </section>
-        </div>
-      </Page>
-    );
-  }
+// ✅ Skip Stripe currency check for manual sellers - they use Paystack!
+if (!isStripeCompatibleCurrency && !isManualSeller) {
+  return (
+    <Page title={title} scrollingDisabled={scrollingDisabled}>
+      <TopbarSimplified />
+      <div className={css.contentContainer}>
+        <section className={css.incompatibleCurrency}>
+          <H4 as="h1" className={css.heading}>
+            <FormattedMessage id="CheckoutPage.incompatibleCurrency" />
+          </H4>
+        </section>
+      </div>
+    </Page>
+  );
+}
 
   return (
     <Page title={title} scrollingDisabled={scrollingDisabled}>
@@ -893,72 +1074,90 @@ const verifyPaystackPayment = async (reference, transactionId) => {
             {errorMessages.retrievePaymentIntentErrorMessage}
             {errorMessages.paymentExpiredMessage}
 
-            {showPaymentForm && !isPaystack ? (
-              <StripePaymentForm
-                className={css.paymentForm}
-                onSubmit={values =>
-                  handleSubmit(values, process, props, stripe, submitting, setSubmitting)
-                }
-                inProgress={submitting}
-                formId="CheckoutPagePaymentForm"
-                providerDisplayName={providerDisplayName}
-                showInitialMessageInput={showInitialMessageInput}
-                initialValues={initialValuesForStripePayment}
-                initiateOrderError={initiateOrderError}
-                confirmCardPaymentError={confirmCardPaymentError}
-                confirmPaymentError={confirmPaymentError}
-                hasHandledCardPayment={hasPaymentIntentUserActionsDone}
-                loadingData={!stripeCustomerFetched}
-                defaultPaymentMethod={
-                  hasDefaultPaymentMethod(stripeCustomerFetched, currentUser)
-                    ? currentUser.stripeCustomer.defaultPaymentMethod
-                    : null
-                }
-                paymentIntent={paymentIntent}
-                onStripeInitialized={stripe => {
-                  setStripe(stripe);
-                  return onStripeInitialized(stripe, process, props);
-                }}
-                askShippingDetails={askShippingDetails}
-                showPickUpLocation={showPickUpLocation}
-                showLocation={showLocation}
-                listingLocation={listingLocation}
-                totalPrice={totalPrice}
-                locale={config.localization.locale}
-                stripePublishableKey={config.stripe.publishableKey}
-                marketplaceName={config.marketplaceName}
-                isBooking={isBookingProcessAlias(transactionProcessAlias)}
-                isFuzzyLocation={config.maps.fuzzy.enabled}
-              />
-            ) : null}
-            <button
-              style={{
-                backgroundColor: paystackProcessing ? '#6b7280' : '#059669', // ✅ Gray when processing
-                color: 'white',
-                padding: '12px 20px',
-                fontSize: '16px',
-                fontWeight: 600,
-                border: 'none',
-                borderRadius: '8px',
-                cursor: paystackProcessing ? 'not-allowed' : 'pointer', // ✅ Change cursor
-                width: '100%',
-                marginTop: '16px',
-                transition: '0.25s',
-                display: 'flex', // ✅ For centering spinner
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-              }}
-              onMouseOver={e => !paystackProcessing && (e.target.style.backgroundColor = '#047857')}
-              onMouseOut={e => !paystackProcessing && (e.target.style.backgroundColor = '#059669')}
-              onClick={handlePaystackPayment}
-              disabled={paystackProcessing} // ✅ Disable when processing
-            >
-              {paystackProcessing && (
-                <IconSpinner /> // ✅ Show spinner
-              )}
-              {paystackProcessing ? 'Processing payment...' : 'Pay with Paystack'}
-            </button>
+            {(() => {
+              // ✅ Check if seller is manual
+              const author = listing?.author;
+              const sellerType = author?.attributes?.profile?.publicData?.sellerType;
+              const isManualSeller = sellerType === 'manual';
+
+              return (
+                <>
+                  {/* Show Stripe ONLY for non-manual sellers */}
+                  {!isManualSeller && showPaymentForm && !isPaystack ? (
+                    <StripePaymentForm
+                      className={css.paymentForm}
+                      onSubmit={values =>
+                        handleSubmit(values, process, props, stripe, submitting, setSubmitting)
+                      }
+                      inProgress={submitting}
+                      formId="CheckoutPagePaymentForm"
+                      providerDisplayName={providerDisplayName}
+                      showInitialMessageInput={showInitialMessageInput}
+                      initialValues={initialValuesForStripePayment}
+                      initiateOrderError={initiateOrderError}
+                      confirmCardPaymentError={confirmCardPaymentError}
+                      confirmPaymentError={confirmPaymentError}
+                      hasHandledCardPayment={hasPaymentIntentUserActionsDone}
+                      loadingData={!stripeCustomerFetched}
+                      defaultPaymentMethod={
+                        hasDefaultPaymentMethod(stripeCustomerFetched, currentUser)
+                          ? currentUser.stripeCustomer.defaultPaymentMethod
+                          : null
+                      }
+                      paymentIntent={paymentIntent}
+                      onStripeInitialized={stripe => {
+                        setStripe(stripe);
+                        return onStripeInitialized(stripe, process, props);
+                      }}
+                      askShippingDetails={askShippingDetails}
+                      showPickUpLocation={showPickUpLocation}
+                      showLocation={showLocation}
+                      listingLocation={listingLocation}
+                      totalPrice={totalPrice}
+                      locale={config.localization.locale}
+                      stripePublishableKey={config.stripe.publishableKey}
+                      marketplaceName={config.marketplaceName}
+                      isBooking={isBookingProcessAlias(transactionProcessAlias)}
+                      isFuzzyLocation={config.maps.fuzzy.enabled}
+                    />
+                  ) : null}
+
+                  {/* Show Paystack for manual sellers OR when explicitly selected */}
+                  {(isManualSeller || isPaystack) && showPaymentForm ? (
+                    <button
+                      style={{
+                        backgroundColor: paystackProcessing ? '#6b7280' : '#059669',
+                        color: 'white',
+                        padding: '12px 20px',
+                        fontSize: '16px',
+                        fontWeight: 600,
+                        border: 'none',
+                        borderRadius: '8px',
+                        cursor: paystackProcessing ? 'not-allowed' : 'pointer',
+                        width: '100%',
+                        marginTop: isManualSeller ? '0' : '16px', // No margin if it's the only option
+                        transition: '0.25s',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                      }}
+                      onMouseOver={e =>
+                        !paystackProcessing && (e.target.style.backgroundColor = '#047857')
+                      }
+                      onMouseOut={e =>
+                        !paystackProcessing && (e.target.style.backgroundColor = '#059669')
+                      }
+                      onClick={handlePaystackPayment}
+                      disabled={paystackProcessing}
+                    >
+                      {paystackProcessing && <IconSpinner />}
+                      {paystackProcessing ? 'Processing payment...' : 'Pay with Paystack'}
+                    </button>
+                  ) : null}
+                </>
+              );
+            })()}
           </section>
         </main>
 

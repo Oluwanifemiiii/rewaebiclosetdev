@@ -322,8 +322,13 @@ const OrderPanel = props => {
   const isPaymentProcess = isBooking || isPurchase || isNegotiation;
 
   const showPriceMissing = isPaymentProcess && !isNegotiation && !price;
+  // ✅ Get seller type to check if manual
+  const LisitngAuthor = listing?.author;
+  const sellerType = LisitngAuthor?.attributes?.profile?.publicData?.sellerType;
+  const isManualSeller = sellerType === 'manual';
+
   const showInvalidCurrency =
-    isPaymentProcess && !isNegotiation && price?.currency !== marketplaceCurrency;
+    isPaymentProcess && !isNegotiation && !isManualSeller && price?.currency !== marketplaceCurrency;
 
   const timeZone = listing?.attributes?.availabilityPlan?.timezone;
   const isClosed = listing?.attributes?.state === LISTING_STATE_CLOSED;

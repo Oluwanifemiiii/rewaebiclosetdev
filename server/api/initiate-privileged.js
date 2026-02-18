@@ -11,7 +11,7 @@ const {
 
 const { Money } = sharetribeSdk.types;
 
-const listingPromise = (sdk, id) => sdk.listings.show({ id });
+const listingPromise = (sdk, id) => sdk.listings.show({ id, include: ['author'] });
 
 const getFullOrderData = (orderData, bodyParams, currency) => {
   const { offerInSubunits } = orderData || {};
@@ -29,7 +29,6 @@ const getFullOrderData = (orderData, bodyParams, currency) => {
 
 const getMetadata = (orderData, transition) => {
   const { actor, offerInSubunits } = orderData || {};
-  // NOTE: for now, the actor is always "provider".
   const hasActor = ['provider', 'customer'].includes(actor);
   const by = hasActor ? actor : null;
 
@@ -48,6 +47,17 @@ const getMetadata = (orderData, transition) => {
     : {};
 };
 
+// ✅ Check if the listing author is a manual seller
+const isManualSeller = (listingResponse) => {
+  const listing = listingResponse?.data?.data;
+  const author = listingResponse?.data?.included?.find(
+    item => item.type === 'user' && item.id.uuid === listing?.relationships?.author?.data?.id?.uuid
+  );
+  
+  const sellerType = author?.attributes?.profile?.publicData?.sellerType;
+  return sellerType === 'manual';
+};
+
 module.exports = (req, res) => {
   const { isSpeculative, orderData, bodyParams, queryParams } = req.body;
   const transitionName = bodyParams.transition;
@@ -55,138 +65,118 @@ module.exports = (req, res) => {
   let lineItems = null;
   let metadataMaybe = {};
 
-  Promise.all([listingPromise(sdk, bodyParams?.params?.listingId), fetchCommission(sdk)])
-    .then(([showListingResponse, fetchAssetsResponse]) => {
+
+
+  listingPromise(sdk, bodyParams?.params?.listingId)
+    .then(showListingResponse => {
       const listing = showListingResponse.data.data;
-      const commissionAsset = fetchAssetsResponse.data.data[0];
+      const processAlias = bodyParams.processAlias || listing.attributes?.publicData?.transactionProcessAlias;
+      const isManual = isManualSeller(showListingResponse);
 
-      const currency = listing.attributes.price?.currency || orderData.currency;
-      const { providerCommission, customerCommission } =
-        commissionAsset?.type === 'jsonAsset' ? commissionAsset.attributes.data : {};
+      console.log('Is manual seller?', isManual);
+      console.log('Process alias:', processAlias);
 
-      lineItems = transactionLineItems(
-        listing,
-        getFullOrderData(orderData, bodyParams, currency),
-        providerCommission,
-        customerCommission
-      );
-      metadataMaybe = getMetadata(orderData, transitionName);
+      // ✅ For manual sellers, skip commission fetch and line item calculation
+      if (isManual || processAlias?.includes('manual')) {
+        console.log('✅ Manual seller detected - skipping Stripe line items');
 
-      return getTrustedSdk(req);
+                // Line 99 area:
+        const currency = orderData.currency || listing.attributes.price?.currency || 'USD';
+                metadataMaybe = getMetadata(orderData, transitionName);
+
+        // ✅ Calculate simple line items without Stripe fees
+        // These will be stored in protectedData, not passed to API
+        const price = listing.attributes.price;
+        const { offerInSubunits } = orderData || {};
+        
+        // Use offer amount if this is a negotiation, otherwise use listing price
+        const amount = offerInSubunits || price?.amount || 0;
+        
+        lineItems = [
+          {
+            code: 'line-item/item',
+            unitPrice: new Money(amount, currency),
+            quantity: 1,
+            includeFor: ['customer', 'provider'],
+          },
+        ];
+
+        console.log('Manual line items:', lineItems);
+
+        return getTrustedSdk(req);
+      } else {
+        // ✅ Regular Stripe flow
+        console.log('Regular Stripe seller - calculating with commission');
+
+        return Promise.all([
+          showListingResponse,
+          fetchCommission(sdk)
+        ]).then(([_, fetchAssetsResponse]) => {
+          const commissionAsset = fetchAssetsResponse.data.data[0];
+          // Line 99 area:
+          const currency = orderData.currency || listing.attributes.price?.currency || 'USD';
+          const { providerCommission, customerCommission } =
+            commissionAsset?.type === 'jsonAsset' ? commissionAsset.attributes.data : {};
+
+          lineItems = transactionLineItems(
+            listing,
+            getFullOrderData(orderData, bodyParams, currency),
+            providerCommission,
+            customerCommission
+          );
+          metadataMaybe = getMetadata(orderData, transitionName);
+
+          return getTrustedSdk(req);
+        });
+      }
     })
     .then(trustedSdk => {
       const { params } = bodyParams;
+      const processAlias = bodyParams.processAlias;
+      const isManual = processAlias?.includes('manual');
 
-      // Ensure listingId is a plain UUID string when present. Some clients
-      // pass SDK UUID objects ({ _sdkType: 'UUID', uuid: '...' }) which may
-      // not be accepted by Marketplace API validation. Convert to uuid string
-      // when possible.
+      // Normalize listingId
       const listingIdRaw = params?.listingId;
       const listingIdNormalized =
         listingIdRaw && typeof listingIdRaw === 'object' && listingIdRaw.uuid
           ? listingIdRaw.uuid
           : listingIdRaw;
 
-      // Add lineItems to the body params
-      const body = {
-        ...bodyParams,
-        params: {
-          ...params,
-          listingId: listingIdNormalized,
-          lineItems,
-          ...metadataMaybe,
-        },
-      };
-
-      // Debug: in development, log a JSON-friendly version of the body to help
-      // diagnose Marketplace API validation errors (e.g. missing keys)
-      try {
-        if (process.env.NODE_ENV === 'development') {
-          const mapUnitPrice = up => {
-            if (!up) return up;
-            // If it's an object with amount & currency, return those
-            if (Object.prototype.hasOwnProperty.call(up, 'amount')) {
-              return { amount: up.amount, currency: up.currency };
-            }
-            // Fallback: return as-is
-            return up;
+      // ✅ For manual sellers, store line items in protectedData
+      // This bypasses Stripe validation
+      const body = isManual
+        ? {
+            ...bodyParams,
+            params: {
+              ...params,
+              listingId: listingIdNormalized,
+              // ❌ DON'T pass lineItems to API (triggers Stripe validation)
+              // ✅ Store in protectedData instead
+              protectedData: {
+                ...params.protectedData,
+                lineItems: normalizeLineItems(lineItems),
+                paymentMethod: 'paystack',
+                sellerType: 'manual',
+              },
+              ...metadataMaybe,
+            },
+          }
+        : {
+            ...bodyParams,
+            params: {
+              ...params,
+              listingId: listingIdNormalized,
+              lineItems: normalizeLineItems(lineItems),
+              ...metadataMaybe,
+            },
           };
 
-          const debugLineItems = (lineItems || []).map(li => ({
-            ...li,
-            unitPrice: mapUnitPrice(li.unitPrice),
-          }));
-
-          console.log(
-            'initiate-privileged: body.params (debug):',
-            JSON.stringify(
-              {
-                ...body.params,
-                lineItems: debugLineItems,
-              },
-              null,
-              2
-            )
-          );
-        }
-      } catch (e) {
-        // Don't allow logging to crash the request
-        console.error('initiate-privileged: failed to stringify debug body', e);
-      }
-      // Normalize lineItems to plain JS objects expected by Marketplace API
-      const normalizeUnitPrice = up => {
-        if (!up) return up;
-        // If SDK Money instance
-        if (up && typeof up === 'object' && typeof up.amount === 'number' && up.currency) {
-          return { amount: up.amount, currency: up.currency };
-        }
-        // If Money-like object with toNumber or amount property
-        if (up && typeof up === 'object') {
-          // Try common numeric accessors
-          if (typeof up.toNumber === 'function') {
-            try {
-              return { amount: up.toNumber(), currency: up.currency };
-            } catch (e) {
-              // fallthrough
-            }
-          }
-          if (up.amount != null && up.currency) {
-            return { amount: Number(up.amount), currency: up.currency };
-          }
-        }
-        return up;
-      };
-
-      const normalizeQuantity = q => {
-        if (q == null) return q;
-        if (typeof q === 'number') return q;
-        if (typeof q === 'object' && typeof q.toNumber === 'function') {
-          try {
-            return q.toNumber();
-          } catch (e) {
-            return Number(q);
-          }
-        }
-        return Number(q);
-      };
-
-      const normalizedLineItems = (body.params.lineItems || []).map(li => {
-        return {
-          ...li,
-          unitPrice: normalizeUnitPrice(li.unitPrice),
-          // ensure quantity/percentage are primitive numbers where applicable
-          quantity: normalizeQuantity(li.quantity),
-          percentage:
-            li.percentage != null &&
-            typeof li.percentage === 'object' &&
-            typeof li.percentage.toNumber === 'function'
-              ? li.percentage.toNumber()
-              : li.percentage,
-        };
+      console.log('Final body.params:', {
+        listingId: body.params.listingId,
+        hasLineItems: !!body.params.lineItems,
+        hasProtectedData: !!body.params.protectedData,
+        protectedDataKeys: body.params.protectedData ? Object.keys(body.params.protectedData) : [],
       });
-
-      // Replace lineItems in body with normalized version
-      body.params = { ...body.params, lineItems: normalizedLineItems };
 
       if (isSpeculative) {
         return trustedSdk.transactions.initiateSpeculative(body, queryParams);
@@ -195,6 +185,7 @@ module.exports = (req, res) => {
     })
     .then(apiResponse => {
       const { status, statusText, data } = apiResponse;
+
       res
         .status(status)
         .set('Content-Type', 'application/transit+json')
@@ -208,15 +199,43 @@ module.exports = (req, res) => {
         .end();
     })
     .catch(e => {
-      // In development, log Marketplace API validation errors to help debugging.
-      try {
-        if (process.env.NODE_ENV === 'development' && e && e.data && Array.isArray(e.data.errors)) {
-          console.error('initiate-privileged: Marketplace API errors:', JSON.stringify(e.data.errors, null, 2));
-        }
-      } catch (logErr) {
-        // ignore logging errors
+      console.error('❌ Initiate privileged error:', e.data || e.message);
+      if (e.data?.errors) {
+        console.error('API errors:', JSON.stringify(e.data.errors, null, 2));
       }
+      console.log('═══════════════════════════\n');
 
       handleError(res, e);
     });
 };
+
+// ✅ Helper to normalize line items to plain objects
+function normalizeLineItems(lineItems) {
+  if (!lineItems) return [];
+
+  return lineItems.map(li => {
+    const normalized = { ...li };
+
+    // Normalize unitPrice
+    if (normalized.unitPrice) {
+      if (typeof normalized.unitPrice === 'object' && normalized.unitPrice.amount) {
+        normalized.unitPrice = {
+          amount: Number(normalized.unitPrice.amount),
+          currency: normalized.unitPrice.currency,
+        };
+      }
+    }
+
+    // Normalize quantity
+    if (normalized.quantity != null) {
+      normalized.quantity = Number(normalized.quantity);
+    }
+
+    // Normalize percentage
+    if (normalized.percentage != null) {
+      normalized.percentage = Number(normalized.percentage);
+    }
+
+    return normalized;
+  });
+}
