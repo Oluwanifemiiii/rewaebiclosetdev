@@ -90,6 +90,7 @@ export const MakeOfferForm = props => {
     intl,
     config,
     price,
+    providerDefaultMessage,
     stripeConnected,
     currentUser,
     errorMessageComponent: ErrorMessage,

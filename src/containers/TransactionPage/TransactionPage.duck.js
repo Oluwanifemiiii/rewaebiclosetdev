@@ -1,7 +1,6 @@
-import pickBy from 'lodash/pickBy';
-import isEmpty from 'lodash/isEmpty';
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 
+import { isEmpty, pickBy } from '../../util/common';
 import { types as sdkTypes, createImageVariantConfig } from '../../util/sdkLoader';
 import {
   bookingTimeUnits,
@@ -22,6 +21,7 @@ import {
   resolveLatestProcessName,
   getProcess,
   isBookingProcess,
+  isNegotiationProcess,
 } from '../../transactions/transaction';
 
 import { addMarketplaceEntities } from '../../ducks/marketplaceData.duck';
@@ -337,7 +337,28 @@ const makeTransitionPayloadCreator = (
     });
   const normalTransition = () =>
     sdk.transactions.transition({ id: txId, transition: transitionName, params }, { expand: true });
-  const makeCall = process?.isPrivileged(transitionName) ? privilegedTransition : normalTransition;
+  // Negotiation process / accept update: check if payin total has changed
+  const acceptUpdateTransition = () =>
+    sdk.transactions.show({ id: txId }, { expand: true }).then(response => {
+      const updatedTransaction = response.data.data;
+      const newPayinTotal = updatedTransaction.attributes.payinTotal.amount;
+      const oldPayinTotal = transaction.attributes.payinTotal.amount;
+
+      if (newPayinTotal !== oldPayinTotal) {
+        dispatch(addMarketplaceEntities(response));
+        throw new Error('Payin total has changed');
+      }
+      return sdk.transactions.transition(
+        { id: txId, transition: transitionName, params },
+        { expand: true }
+      );
+    });
+
+  const makeCall = process?.isPrivileged(transitionName)
+    ? privilegedTransition
+    : isNegotiationProcess(processName) && transitionName === process.transitions.ACCEPT_UPDATE
+    ? acceptUpdateTransition
+    : normalTransition;
 
   return makeCall()
     .then(response => {
@@ -353,10 +374,12 @@ const makeTransitionPayloadCreator = (
       return response;
     })
     .catch(e => {
-      log.error(e, `${transitionName}-failed`, {
-        txId,
-        transition: transitionName,
-      });
+      if (e.message !== 'Payin total has changed') {
+        log.error(e, `${transitionName}-failed`, {
+          txId,
+          transition: transitionName,
+        });
+      }
       return rejectWithValue(storableError(e));
     });
 };

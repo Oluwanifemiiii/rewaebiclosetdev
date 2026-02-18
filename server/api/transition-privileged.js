@@ -6,6 +6,7 @@ const {
   isIntentionToMakeCounterOffer,
   isIntentionToMakeOffer,
   isIntentionToRevokeCounterOffer,
+  isIntentionToUpdateOffer,
   throwErrorIfNegotiationOfferHasInvalidHistory,
 } = require('../api-util/negotiation');
 const {
@@ -35,8 +36,12 @@ const getFullOrderData = (orderData, bodyParams, currency, offers) => {
   const transitionName = bodyParams.transition;
   const orderDataAndParams = { ...orderData, ...bodyParams.params, currency };
 
-  return isIntentionToMakeOffer(offerInSubunits, transitionName) ||
-    isIntentionToMakeCounterOffer(offerInSubunits, transitionName)
+  const isNewOffer =
+    isIntentionToMakeOffer(offerInSubunits, transitionName) ||
+    isIntentionToMakeCounterOffer(offerInSubunits, transitionName) ||
+    isIntentionToUpdateOffer(offerInSubunits, transitionName);
+
+  return isNewOffer
     ? {
         ...orderDataAndParams,
         offer: new Money(offerInSubunits, currency),
@@ -57,7 +62,8 @@ const getUpdatedMetadata = (orderData, transition, existingMetadata) => {
 
   const isNewOffer =
     isIntentionToMakeOffer(offerInSubunits, transition) ||
-    isIntentionToMakeCounterOffer(offerInSubunits, transition);
+    isIntentionToMakeCounterOffer(offerInSubunits, transition) ||
+    isIntentionToUpdateOffer(offerInSubunits, transition);
 
   return isNewOffer
     ? addOfferToMetadata(existingMetadata, {
@@ -75,7 +81,7 @@ const getUpdatedMetadata = (orderData, transition, existingMetadata) => {
 };
 
 module.exports = (req, res) => {
-  const { isSpeculative, orderData, bodyParams, queryParams } = req.body;
+  const { isSpeculative, orderData, bodyParams, queryParams } = req.body || {};
 
   const sdk = getSdk(req, res);
   const transitionName = bodyParams.transition;

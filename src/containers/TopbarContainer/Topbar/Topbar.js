@@ -1,17 +1,18 @@
 import React from 'react';
-import pickBy from 'lodash/pickBy';
 import classNames from 'classnames';
 
 import appSettings from '../../../config/settings';
 import { useConfiguration } from '../../../context/configurationContext';
 import { useRouteConfiguration } from '../../../context/routeConfigurationContext';
 
+import { pickBy } from '../../../util/common';
 import { FormattedMessage, useIntl } from '../../../util/reactIntl';
 import { isMainSearchTypeKeywords, isOriginInUse } from '../../../util/search';
 import { parse, stringify } from '../../../util/urlHelpers';
 import { createResourceLocatorString, matchPathname, pathByRouteName } from '../../../util/routes';
 import {
   Button,
+  IconArrowHead,
   LimitedAccessBanner,
   LinkedLogo,
   Modal,
@@ -311,8 +312,31 @@ const TopbarComponent = props => {
     <div className={css.searchMenu} />
   );
 
+  const handleSkipToMainContent = e => {
+    e.preventDefault();
+    const mainContent = document.getElementById('main-content');
+    if (mainContent) {
+      mainContent.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // Focus the main content for screen readers
+      mainContent.setAttribute('tabindex', '-1');
+      mainContent.focus();
+      // Remove tabindex after blur to avoid tabbing into it later
+      mainContent.addEventListener(
+        'blur',
+        () => {
+          mainContent.removeAttribute('tabindex');
+        },
+        { once: true }
+      );
+    }
+  };
+
   return (
     <div className={classes}>
+      <Button onClick={handleSkipToMainContent} className={css.skipToMainContent}>
+        <FormattedMessage id="Topbar.skipToMainContent" />
+        <IconArrowHead direction="right" size="small" rootClassName={css.skiptoMainArrow} />
+      </Button>
       <LimitedAccessBanner
         isAuthenticated={isAuthenticated}
         isLoggedInAs={isLoggedInAs}
@@ -335,6 +359,7 @@ const TopbarComponent = props => {
           {notificationDot}
         </Button>
         <LinkedLogo
+          id="logo-topbar-mobile"
           layout={'mobile'}
           alt={intl.formatMessage({ id: 'Topbar.logoIcon' })}
           linkToExternalSite={config?.topbar?.logoLink}
