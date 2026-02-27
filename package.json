@@ -1,7 +1,7 @@
 {
   "name": "app",
   "version": "10.10.1",
-  "proxy": "http://localhost:3500",
+  "proxy": "http://rewaebiclosetdev:10000",
   "private": true,
   "license": "Apache-2.0",
   "dependencies": {
