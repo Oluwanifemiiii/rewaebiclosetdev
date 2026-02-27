@@ -272,7 +272,7 @@ app.get('/{*splat}', async (req, res) => {
   // Note: Check ttl (time-to-live) and maxBytes (10MB by default for cached data) from sdkCacheProxy.js
   // You could also define maxBytes based on free memory: const maxBytes = os.freemem() * 0.5;
   const sharetribeSDK = sdkUtils.getSdk(req, res);
-  const sdk = getSDKProxy(sharetribeSDK);
+  const sdk = sharetribeSDK;
 
   res.locals.beforeLoadDataTimestamp = Date.now();
 
