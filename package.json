@@ -1,6 +1,7 @@
 {
   "name": "app",
   "version": "10.10.1",
+  "proxy": "http://localhost:3500",
   "private": true,
   "license": "Apache-2.0",
   "dependencies": {
@@ -116,9 +117,6 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
-  },
-  "engines": {
-    "node": ">=22.22.0"
   },
   "prettier": {
     "singleQuote": true,

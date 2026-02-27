@@ -9,35 +9,11 @@ import {
   Form,
   PrimaryButton,
   FieldTextInput,
-  FieldSelect,
   IconSpinner,
   H4,
 } from '../../components';
 
 import css from './ManualPayoutDetailsPage.module.css';
-
-// List of major Nigerian banks
-const NIGERIAN_BANKS = [
-  { code: 'ACCESS', name: 'Access Bank' },
-  { code: 'ZENITH', name: 'Zenith Bank' },
-  { code: 'GTB', name: 'GTBank (Guaranty Trust Bank)' },
-  { code: 'FIRSTBANK', name: 'First Bank of Nigeria' },
-  { code: 'UBA', name: 'United Bank for Africa (UBA)' },
-  { code: 'FCMB', name: 'First City Monument Bank (FCMB)' },
-  { code: 'STANBIC', name: 'Stanbic IBTC Bank' },
-  { code: 'STERLING', name: 'Sterling Bank' },
-  { code: 'UNION', name: 'Union Bank' },
-  { code: 'ECOBANK', name: 'Ecobank Nigeria' },
-  { code: 'FIDELITY', name: 'Fidelity Bank' },
-  { code: 'POLARIS', name: 'Polaris Bank' },
-  { code: 'WEMA', name: 'Wema Bank' },
-  { code: 'KEYSTONE', name: 'Keystone Bank' },
-  { code: 'PROVIDUS', name: 'Providus Bank' },
-  { code: 'KUDA', name: 'Kuda Bank' },
-  { code: 'OPAY', name: 'OPay' },
-  { code: 'PALMPAY', name: 'PalmPay' },
-  { code: 'MONIEPOINT', name: 'Moniepoint' },
-];
 
 const ManualPayoutDetailsForm = props => {
   const {
@@ -102,22 +78,16 @@ const ManualPayoutDetailsForm = props => {
                 <FormattedMessage id="ManualPayoutDetailsPage.bankDetailsDescription" />
               </p>
 
-              <FieldSelect
+              {/* ✅ CHANGED: Text input instead of dropdown for international support */}
+              <FieldTextInput
                 id={`${formId}.bankName`}
                 name="bankName"
+                type="text"
                 label={intl.formatMessage({ id: 'ManualPayoutDetailsPage.bankNameLabel' })}
+                placeholder="e.g., Access Bank, Standard Bank, Bank of America..."
                 validate={bankRequired}
                 className={css.field}
-              >
-                <option value="">
-                  {intl.formatMessage({ id: 'ManualPayoutDetailsPage.selectBank' })}
-                </option>
-                {NIGERIAN_BANKS.map(bank => (
-                  <option key={bank.code} value={bank.name}>
-                    {bank.name}
-                  </option>
-                ))}
-              </FieldSelect>
+              />
 
               <FieldTextInput
                 id={`${formId}.accountNumber`}

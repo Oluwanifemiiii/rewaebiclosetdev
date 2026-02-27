@@ -70,6 +70,26 @@ export const { setInitialValues } = stripePayoutPageSlice.actions;
 
 export default stripePayoutPageSlice.reducer;
 
+export const setPayoutMethod = (method) => (dispatch, getState, sdk) => {
+  const { currentUser } = getState().user;
+  
+  const publicData = {
+    ...currentUser?.attributes?.profile?.publicData,
+    sellerType: method, // 'manual' or could leave empty for Stripe
+  };
+
+  return sdk.currentUser.updateProfile({ publicData })
+    .then(response => {
+      // Update the user in Redux store
+      dispatch({ type: 'user/CURRENT_USER_SHOW_SUCCESS', payload: response.data });
+      return response;
+    })
+    .catch(e => {
+      console.error('Failed to set payout method:', e);
+      throw e;
+    });
+};
+
 // ================ Load Data ================ //
 
 export const loadData = () => (dispatch, getState, sdk) => {

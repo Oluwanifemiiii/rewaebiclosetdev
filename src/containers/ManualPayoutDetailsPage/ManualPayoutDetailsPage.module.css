@@ -136,6 +136,11 @@
   font-size: 14px;
 }
 
+.successActions {
+  margin-top: 1.5rem;
+  text-align: center;
+}
+
 @media (max-width: 768px) {
   .root {
     padding: 16px;

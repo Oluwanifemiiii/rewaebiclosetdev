@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { compose } from 'redux';
 import { connect } from 'react-redux';
 import ManualPayoutDetailsPage from '../ManualPayoutDetailsPage/ManualPayoutDetailsPage';
@@ -14,7 +14,7 @@ import {
   stripeAccountClearError,
   getStripeConnectAccountLink,
 } from '../../ducks/stripeConnectAccount.duck';
-
+import { useLocation } from 'react-router-dom';
 import {
   H3,
   NamedRedirect,
@@ -23,21 +23,20 @@ import {
   StripeConnectAccountForm,
   UserNav,
   LayoutSideNavigation,
+  PrimaryButton,
+  SecondaryButton,
+  IconArrowHead,
 } from '../../components';
 
 import TopbarContainer from '../../containers/TopbarContainer/TopbarContainer';
 import FooterContainer from '../../containers/FooterContainer/FooterContainer';
 
-import { savePayoutDetails } from './StripePayoutPage.duck';
+import { savePayoutDetails, setPayoutMethod } from './StripePayoutPage.duck';
 
 import css from './StripePayoutPage.module.css';
 
 const STRIPE_ONBOARDING_RETURN_URL_SUCCESS = 'success';
 const STRIPE_ONBOARDING_RETURN_URL_FAILURE = 'failure';
-const STRIPE_ONBOARDING_RETURN_URL_TYPES = [
-  STRIPE_ONBOARDING_RETURN_URL_SUCCESS,
-  STRIPE_ONBOARDING_RETURN_URL_FAILURE,
-];
 
 // Create return URL for the Stripe onboarding form
 const createReturnURL = (returnURLType, rootURL, routes) => {
@@ -77,31 +76,12 @@ const handleGetStripeConnectAccountLinkFn = (getLinkFn, commonParams) => type =>
 };
 
 /**
- * StripePayoutPage component
- *
- * @component
- * @param {Object} props
- * @param {propTypes.currentUser} props.currentUser - The current user
- * @param {boolean} props.scrollingDisabled - Whether scrolling is disabled
- * @param {boolean} props.getAccountLinkInProgress - Whether the account link is in progress
- * @param {boolean} props.payoutDetailsSaveInProgress - Whether the payout details are in progress
- * @param {propTypes.error} props.createStripeAccountError - The create stripe account error
- * @param {propTypes.error} props.getAccountLinkError - The get account link error
- * @param {propTypes.error} props.updateStripeAccountError - The update stripe account error
- * @param {propTypes.error} props.fetchStripeAccountError - The fetch stripe account error
- * @param {Object} props.stripeAccount - The stripe account
- * @param {boolean} props.stripeAccountFetched - Whether the stripe account is fetched
- * @param {boolean} props.payoutDetailsSaved - Whether the payout details are saved
- * @param {Function} props.onPayoutDetailsChange - The function to handle the payout details change
- * @param {Function} props.onPayoutDetailsSubmit - The function to handle the payout details submit
- * @param {Function} props.onGetStripeConnectAccountLink - The function to handle the get stripe connect account link
- * @param {Object} props.params - The path params
- * @param {STRIPE_ONBOARDING_RETURN_URL_SUCCESS | STRIPE_ONBOARDING_RETURN_URL_FAILURE} props.params.returnURLType - The return URL type (success or failure)
- * @returns {JSX.Element}
+ * StripePayoutPage component with two-button payout method selector
  */
 export const StripePayoutPageComponent = props => {
   const config = useConfiguration();
   const routes = useRouteConfiguration();
+  const location = useLocation(); 
   const intl = useIntl();
   const {
     currentUser,
@@ -115,22 +95,38 @@ export const StripePayoutPageComponent = props => {
     stripeAccount,
     onPayoutDetailsChange,
     onPayoutDetailsSubmit,
+    onSetPayoutMethod,
     onGetStripeConnectAccountLink,
     payoutDetailsSaveInProgress,
     payoutDetailsSaved,
     params,
     authScopes,
   } = props;
-   const isManualSeller = currentUser?.attributes?.profile?.publicData?.sellerType === 'manual';
+    const searchParams = new URLSearchParams(location.search);
+  const shouldReset = searchParams.get('reset') === 'true';
   
-  // ✅ Show bank details form instead of Stripe for manual sellers
-  if (isManualSeller) {
-    return <ManualPayoutDetailsPage {...props} />;
-  }
+  const [selectedMethod, setSelectedMethod] = useState(shouldReset ? null : null);
+  const sellerType = currentUser?.attributes?.profile?.publicData?.sellerType;
+  const hasPayoutDetails = currentUser?.attributes?.profile?.protectedData?.bankDetails;
+  const stripeConnected = !!stripeAccount?.id;
+
+  // ✅ User has already chosen a method
+  const hasChosenMethod = shouldReset ? false : (sellerType === 'manual' || stripeConnected);
+
+
+  const handleSelectManual = () => {
+    setSelectedMethod('manual');
+    // Set sellerType in user's publicData
+    onSetPayoutMethod('manual');
+  };
+
+  const handleSelectStripe = () => {
+    setSelectedMethod('stripe');
+  };
+
   const { returnURLType } = params || {};
   const ensuredCurrentUser = ensureCurrentUser(currentUser);
   const currentUserLoaded = !!ensuredCurrentUser.id;
-  const stripeConnected = currentUserLoaded && !!stripeAccount && !!stripeAccount.id;
 
   const title = intl.formatMessage({ id: 'StripePayoutPage.title' });
 
@@ -139,6 +135,8 @@ export const StripePayoutPageComponent = props => {
   const rootURL = config.marketplaceRootURL;
   const successURL = createReturnURL(STRIPE_ONBOARDING_RETURN_URL_SUCCESS, rootURL, routes);
   const failureURL = createReturnURL(STRIPE_ONBOARDING_RETURN_URL_FAILURE, rootURL, routes);
+ 
+  
 
   const accountId = stripeConnected ? stripeAccount.id : null;
   const stripeAccountData = stripeConnected ? getStripeAccountData(stripeAccount) : null;
@@ -175,7 +173,6 @@ export const StripePayoutPageComponent = props => {
   }
 
   // Failure url should redirect back to Stripe since it's most likely due to page reload
-  // Account link creation will fail if the account is the reason
   if (returnedAbnormallyFromStripe && !getAccountLinkError) {
     handleGetStripeConnectAccountLink('custom_account_verification')();
   }
@@ -187,6 +184,11 @@ export const StripePayoutPageComponent = props => {
     showPaymentMethods,
     showPayoutDetails,
   };
+
+  // ✅ Show manual payout page if user selected manual OR has manual set
+    if (selectedMethod === 'manual' || (sellerType === 'manual' && !selectedMethod && !shouldReset)) {
+    return <ManualPayoutDetailsPage {...props} />;
+  }
 
   return (
     <Page title={title} scrollingDisabled={scrollingDisabled}>
@@ -213,11 +215,42 @@ export const StripePayoutPageComponent = props => {
           <H3 as="h1" className={css.heading}>
             <FormattedMessage id="StripePayoutPage.heading" />
           </H3>
+
           {!currentUserLoaded ? (
             <FormattedMessage id="StripePayoutPage.loadingData" />
+          ) : !hasChosenMethod && !selectedMethod ? (
+            // ✅ Show two-button selector FIRST TIME ONLY
+            <div className={css.payoutMethodSelector}>
+              <p className={css.selectorDescription}>
+                <FormattedMessage id="StripePayoutPage.choosePayoutMethod" />
+              </p>
+
+              <div className={css.buttonContainer}>
+                <button className={css.methodButton} onClick={handleSelectManual}>
+                  <div className={css.methodIcon}>🌍</div>
+                  <div className={css.methodTitle}>
+                    <FormattedMessage id="StripePayoutPage.manualMethodTitle" />
+                  </div>
+                  <div className={css.methodDescription}>
+                    <FormattedMessage id="StripePayoutPage.manualMethodDescription" />
+                  </div>
+                </button>
+
+                <button className={css.methodButton} onClick={handleSelectStripe}>
+                  <div className={css.methodIcon}>💳</div>
+                  <div className={css.methodTitle}>
+                    <FormattedMessage id="StripePayoutPage.stripeMethodTitle" />
+                  </div>
+                  <div className={css.methodDescription}>
+                    <FormattedMessage id="StripePayoutPage.stripeMethodDescription" />
+                  </div>
+                </button>
+              </div>
+            </div>
           ) : returnedAbnormallyFromStripe && !getAccountLinkError ? (
             <FormattedMessage id="StripePayoutPage.redirectingToStripe" />
           ) : (
+            // ✅ Show Stripe form (user selected Stripe OR already has Stripe)
             <StripeConnectAccountForm
               rootClassName={css.stripeConnectAccountForm}
               disabled={formDisabled}
@@ -241,6 +274,18 @@ export const StripePayoutPageComponent = props => {
               stripeConnected={stripeConnected}
               authScopes={authScopes}
             >
+              {selectedMethod === 'stripe' && !stripeConnected && (
+                <div className={css.backButtonContainer}>
+                  <SecondaryButton
+                    onClick={() => {
+                      setSelectedMethod(null);
+                    }}
+                  >
+                    <IconArrowHead direction="left" size="small" />
+                    Back to Payout Options
+                  </SecondaryButton>
+                </div>
+              )}
               {stripeConnected && !returnedAbnormallyFromStripe && showVerificationNeeded ? (
                 <StripeConnectAccountStatusBox
                   type="verificationNeeded"
@@ -304,6 +349,7 @@ const mapDispatchToProps = dispatch => ({
   onPayoutDetailsSubmit: (values, isUpdateCall) =>
     dispatch(savePayoutDetails(values, isUpdateCall)),
   onGetStripeConnectAccountLink: params => dispatch(getStripeConnectAccountLink(params)),
+  onSetPayoutMethod: (method) => dispatch(setPayoutMethod(method)),
 });
 
 const StripePayoutPage = compose(

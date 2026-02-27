@@ -205,7 +205,7 @@ const SignupFormComponent = props => (
                 intl={intl}
               />
 
-              {/* ✅ NEW: Nigerian seller checkbox */}
+              {/* ✅ NEW: Nigerian seller checkbox
               <div className={css.nigerianSellerCheckbox}>
                 <FieldCheckbox
                   id={formId ? `${formId}.isNigerianSeller` : 'isNigerianSeller'}
@@ -213,7 +213,7 @@ const SignupFormComponent = props => (
                   label="I am based in Nigeria and want to receive payments via Paystack/Manual transfer"
                   value="manual"
                 />
-              </div>
+              </div> */}
             </div>
           ) : null}
 
