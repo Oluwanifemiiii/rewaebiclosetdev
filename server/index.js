@@ -78,9 +78,6 @@ checkEnvVariables(MANDATORY_ENV_VARIABLES);
 
 const app = express();
 
-// ✅ ADD CORS CONFIGURATION HERE
-const cors = require('cors');
-
 // Configure CORS to accept credentials (cookies)
 app.use(cors({
   origin: process.env.REACT_APP_MARKETPLACE_ROOT_URL || 'http://localhost:3000',
