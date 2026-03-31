@@ -173,6 +173,7 @@ export class TransactionPanelComponent extends Component {
       provider,
       transitions,
       protectedData,
+      txMetadata,
       messages,
       initialMessageFailed = false,
       savePaymentMethodFailed = false,
@@ -243,6 +244,10 @@ export class TransactionPanelComponent extends Component {
     const showDetailCardHeadings = stateData.showDetailCardHeadings || !hasViewingRights;
 
     const deliveryMethod = protectedData?.deliveryMethod || 'none';
+    // deliveryAddress and deliveryFeeInSubunits may be in metadata (saved post-payment)
+    // or in protectedData (saved via privileged transition)
+    const deliveryAddress = txMetadata?.deliveryAddress || protectedData?.deliveryAddress;
+    const deliveryFeeInSubunits = txMetadata?.deliveryFeeInSubunits || protectedData?.deliveryFeeInSubunits;
     const priceVariantName = protectedData?.priceVariantName;
 
     const inquiryMessage = !isCustomerBanned
@@ -343,6 +348,26 @@ export class TransactionPanelComponent extends Component {
                 />
               </div>
             ) : null}
+
+            {deliveryAddress && (
+              <div className={css.deliveryAddressSection}>
+                <h3 className={css.deliveryAddressTitle}>
+                  <FormattedMessage id="TransactionPanel.deliveryAddressTitle" />
+                </h3>
+                <div className={css.deliveryAddressContent}>
+                  <p className={css.addressLine}>{deliveryAddress.street}</p>
+                  <p className={css.addressLine}>
+                    {deliveryAddress.city}, {deliveryAddress.state}{' '}
+                    {deliveryAddress.postalCode}
+                  </p>
+                  <p className={css.addressLine}>{deliveryAddress.country}</p>
+                  <p className={css.addressLine}>
+                    <FormattedMessage id="TransactionPanel.phoneLabel" />:{' '}
+                    {deliveryAddress.phone}
+                  </p>
+                </div>
+              </div>
+            )}
 
             <FeedSection
               rootClassName={css.feedContainer}

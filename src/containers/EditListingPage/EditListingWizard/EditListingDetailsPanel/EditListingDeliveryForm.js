@@ -285,108 +285,64 @@ export const EditListingDeliveryForm = props => (
             ) : null}
           </div>
 
-             {/* ✅ SHIPPING ORIGIN & RATE SECTION */}
+          {/* Shipping rate fields — seller sets their rate per km and optional minimum fee.
+              The seller's dispatch location is taken from the listing's Location step,
+              so no separate address fields are needed here. */}
           {shippingEnabled && (
-            <div className={css.shippingOriginSection}>
-              <h3 className={css.shippingOriginTitle}>
-                <FormattedMessage id="EditListingDeliveryForm.shippingOriginTitle" />
-              </h3>
-              <p className={css.shippingOriginDescription}>
-                <FormattedMessage id="EditListingDeliveryForm.shippingOriginDescription" />
+            <div className={css.shippingRateSection}>
+              <p className={css.shippingRateNote}>
+                <FormattedMessage
+                  id="EditListingDeliveryForm.shippingRateNote"
+                  defaultMessage="Your pickup location (set in the Location step) will be used as the shipping origin. Buyers will see the delivery fee calculated from your location to theirs."
+                />
               </p>
- 
-              <FieldTextInput
-                id={formId ? `${formId}.shippingOrigin.street` : 'shippingOrigin.street'}
+
+              <FieldCurrencyInput
+                id={formId ? `${formId}.shippingRatePerKm` : 'shippingRatePerKm'}
+                name="shippingRatePerKm"
                 className={css.input}
-                type="text"
-                name="shippingOrigin.street"
-                label={intl.formatMessage({ id: 'EditListingDeliveryForm.shippingOriginStreet' })}
-                placeholder={intl.formatMessage({ id: 'EditListingDeliveryForm.shippingOriginStreetPlaceholder' })}
-                validate={shippingEnabled ? required(
-                  intl.formatMessage({ id: 'EditListingDeliveryForm.shippingOriginStreetRequired' })
-                ) : null}
+                label={intl.formatMessage({
+                  id: 'EditListingDeliveryForm.shippingRatePerKmLabel',
+                  defaultMessage: 'Delivery rate per km',
+                })}
+                placeholder={intl.formatMessage({
+                  id: 'EditListingDeliveryForm.shippingRatePerKmPlaceholder',
+                  defaultMessage: 'e.g. ₦100',
+                })}
+                currencyConfig={currencyConfig}
+                disabled={!shippingEnabled}
+                validate={
+                  shippingEnabled
+                    ? required(
+                        intl.formatMessage({
+                          id: 'EditListingDeliveryForm.shippingRatePerKmRequired',
+                          defaultMessage: 'Rate per km is required',
+                        })
+                      )
+                    : null
+                }
                 hideErrorMessage={!shippingEnabled}
-                key={shippingEnabled ? 'streetValidation' : 'noStreetValidation'}
+                key={shippingEnabled ? 'rateValidation' : 'noRateValidation'}
               />
- 
-              <div className={css.addressRow}>
-                <FieldTextInput
-                  id={formId ? `${formId}.shippingOrigin.city` : 'shippingOrigin.city'}
-                  className={css.inputHalf}
-                  type="text"
-                  name="shippingOrigin.city"
-                  label={intl.formatMessage({ id: 'EditListingDeliveryForm.shippingOriginCity' })}
-                  placeholder={intl.formatMessage({ id: 'EditListingDeliveryForm.shippingOriginCityPlaceholder' })}
-                  validate={shippingEnabled ? required(
-                    intl.formatMessage({ id: 'EditListingDeliveryForm.shippingOriginCityRequired' })
-                  ) : null}
-                  hideErrorMessage={!shippingEnabled}
-                  key={shippingEnabled ? 'cityValidation' : 'noCityValidation'}
-                />
- 
-                <FieldTextInput
-                  id={formId ? `${formId}.shippingOrigin.state` : 'shippingOrigin.state'}
-                  className={css.inputHalf}
-                  type="text"
-                  name="shippingOrigin.state"
-                  label={intl.formatMessage({ id: 'EditListingDeliveryForm.shippingOriginState' })}
-                  placeholder={intl.formatMessage({ id: 'EditListingDeliveryForm.shippingOriginStatePlaceholder' })}
-                />
-              </div>
- 
-              <div className={css.addressRow}>
-                <FieldTextInput
-                  id={formId ? `${formId}.shippingOrigin.country` : 'shippingOrigin.country'}
-                  className={css.inputHalf}
-                  type="text"
-                  name="shippingOrigin.country"
-                  label={intl.formatMessage({ id: 'EditListingDeliveryForm.shippingOriginCountry' })}
-                  placeholder={intl.formatMessage({ id: 'EditListingDeliveryForm.shippingOriginCountryPlaceholder' })}
-                  validate={shippingEnabled ? required(
-                    intl.formatMessage({ id: 'EditListingDeliveryForm.shippingOriginCountryRequired' })
-                  ) : null}
-                  hideErrorMessage={!shippingEnabled}
-                  key={shippingEnabled ? 'countryValidation' : 'noCountryValidation'}
-                />
- 
-                <FieldTextInput
-                  id={formId ? `${formId}.shippingOrigin.postalCode` : 'shippingOrigin.postalCode'}
-                  className={css.inputHalf}
-                  type="text"
-                  name="shippingOrigin.postalCode"
-                  label={intl.formatMessage({ id: 'EditListingDeliveryForm.shippingOriginPostalCode' })}
-                  placeholder={intl.formatMessage({ id: 'EditListingDeliveryForm.shippingOriginPostalCodePlaceholder' })}
-                />
-              </div>
- 
-              {/* SHIPPING RATE */}
-              <div className={css.shippingRateSection}>
-                <FieldCurrencyInput
-                  id={formId ? `${formId}.shippingRatePerKm` : 'shippingRatePerKm'}
-                  name="shippingRatePerKm"
-                  className={css.input}
-                  label={intl.formatMessage({ id: 'EditListingDeliveryForm.shippingRatePerKmLabel' })}
-                  placeholder={intl.formatMessage({ id: 'EditListingDeliveryForm.shippingRatePerKmPlaceholder' })}
-                  currencyConfig={currencyConfig}
-                  validate={shippingEnabled ? required(
-                    intl.formatMessage({ id: 'EditListingDeliveryForm.shippingRatePerKmRequired' })
-                  ) : null}
-                  hideErrorMessage={!shippingEnabled}
-                  key={shippingEnabled ? 'rateValidation' : 'noRateValidation'}
-                />
- 
-                <FieldCurrencyInput
-                  id={formId ? `${formId}.minimumShippingFee` : 'minimumShippingFee'}
-                  name="minimumShippingFee"
-                  className={css.input}
-                  label={intl.formatMessage(
-                    { id: 'EditListingDeliveryForm.minimumShippingFeeLabel' },
-                    { optionalText }
-                  )}
-                  placeholder={intl.formatMessage({ id: 'EditListingDeliveryForm.minimumShippingFeePlaceholder' })}
-                  currencyConfig={currencyConfig}
-                />
-              </div>
+
+              <FieldCurrencyInput
+                id={formId ? `${formId}.minimumShippingFee` : 'minimumShippingFee'}
+                name="minimumShippingFee"
+                className={css.input}
+                label={intl.formatMessage(
+                  {
+                    id: 'EditListingDeliveryForm.minimumShippingFeeLabel',
+                    defaultMessage: 'Minimum delivery fee ({optionalText})',
+                  },
+                  { optionalText }
+                )}
+                placeholder={intl.formatMessage({
+                  id: 'EditListingDeliveryForm.minimumShippingFeePlaceholder',
+                  defaultMessage: 'e.g. ₦500',
+                })}
+                currencyConfig={currencyConfig}
+                disabled={!shippingEnabled}
+              />
             </div>
           )}
 

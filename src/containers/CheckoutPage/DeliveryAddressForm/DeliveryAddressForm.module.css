@@ -1,0 +1,194 @@
+/* DeliveryAddressForm.module.css */
+
+.root {
+  padding: 24px 0;
+  border-top: 1px solid var(--colorGrey100);
+  margin-top: 24px;
+}
+
+.heading {
+  font-size: 18px;
+  font-weight: var(--fontWeightSemiBold);
+  margin: 0 0 16px 0;
+  color: var(--colorGrey700);
+}
+
+.warning {
+  font-size: 14px;
+  color: var(--colorAttention);
+  margin: 0 0 16px 0;
+  padding: 10px 14px;
+  background: var(--colorAttentionLight, #fff8e1);
+  border-radius: var(--borderRadiusMedium);
+}
+
+/* Toggle button — shown as a plain text link */
+.toggleButton {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0 0 20px 0;
+  font-size: 14px;
+  color: var(--marketplaceColor);
+  cursor: pointer;
+  text-decoration: underline;
+  display: block;
+}
+
+.toggleButton:hover {
+  color: var(--marketplaceColorDark);
+}
+
+.toggleButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Autocomplete field */
+.locationField {
+  margin-bottom: 16px;
+}
+
+.locationInput {
+  border-bottom: 2px solid var(--colorGrey100);
+  padding: 12px 0;
+  font-size: 16px;
+  width: 100%;
+}
+
+.locationInput:focus {
+  border-bottom-color: var(--marketplaceColor);
+  outline: none;
+}
+
+.locationIcon {
+  fill: var(--colorGrey400);
+}
+
+.predictions {
+  position: absolute;
+  z-index: 100;
+  background: #fff;
+  border: 1px solid var(--colorGrey200);
+  border-radius: var(--borderRadiusMedium);
+  box-shadow: var(--boxShadowPopup);
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.validLocation {
+  border-bottom-color: var(--colorSuccess);
+}
+
+/* Manual fields */
+.manualFields {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.formRow {
+  display: flex;
+  gap: 16px;
+}
+
+@media (max-width: 550px) {
+  .formRow {
+    flex-direction: column;
+    gap: 16px;
+  }
+}
+
+.fieldFullWidth {
+  width: 100%;
+}
+
+.field {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Fee result panel */
+.feeSection {
+  margin-top: 20px;
+  min-height: 40px;
+}
+
+.calculating {
+  font-size: 14px;
+  color: var(--colorGrey500);
+  font-style: italic;
+  margin: 0;
+}
+
+.feeResult {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--colorSuccessLight, #f0fdf4);
+  border: 1px solid var(--colorSuccess, #16a34a);
+  border-radius: var(--borderRadiusMedium);
+  flex-wrap: wrap;
+}
+
+.feeLabel {
+  font-size: 14px;
+  color: var(--colorGrey600);
+}
+
+.feeAmount {
+  font-size: 18px;
+  font-weight: var(--fontWeightSemiBold);
+  color: var(--colorSuccess, #16a34a);
+}
+
+.distance {
+  font-size: 13px;
+  color: var(--colorGrey500);
+}
+
+.feeError {
+  font-size: 14px;
+  color: var(--colorFail);
+  margin: 0;
+  padding: 10px 14px;
+  background: var(--colorFailLight, #fff1f2);
+  border-radius: var(--borderRadiusMedium);
+}
+
+/* Plain input styles (no Final Form) */
+.fieldWrapper {
+  margin-bottom: 16px;
+  flex: 1;
+  min-width: 0;
+}
+
+.label {
+  display: block;
+  font-size: 14px;
+  font-weight: var(--fontWeightSemiBold, 600);
+  color: var(--colorGrey700, #374151);
+  margin-bottom: 6px;
+}
+
+.input {
+  width: 100%;
+  padding: 10px 14px;
+  font-size: 16px;
+  border: 1px solid var(--colorGrey300, #d1d5db);
+  border-radius: var(--borderRadiusMedium, 6px);
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.input:focus {
+  border-color: var(--marketplaceColor, #4f46e5);
+  box-shadow: 0 0 0 3px var(--marketplaceColorLight, rgba(79,70,229,0.15));
+}
+
+.input:disabled {
+  background: var(--colorGrey50, #f9fafb);
+  cursor: not-allowed;
+}

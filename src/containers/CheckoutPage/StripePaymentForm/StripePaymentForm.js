@@ -3,10 +3,9 @@
  * Card is not a Final Form field so it's not available trough Final Form.
  * It's also handled separately in handleSubmit function.
  */
-import React, { Component } from 'react';
+import React, { Component, useState } from 'react';
 import { Form as FinalForm } from 'react-final-form';
 import classNames from 'classnames';
-
 import { FormattedMessage, injectIntl } from '../../../util/reactIntl';
 import { propTypes } from '../../../util/types';
 import { ensurePaymentMethodCard } from '../../../util/data';
@@ -294,7 +293,7 @@ const initialState = {
 class StripePaymentForm extends Component {
   constructor(props) {
     super(props);
-    this.state = initialState;
+    this.state = { ...initialState };
     this.updateBillingDetailsToMatchShippingAddress = this.updateBillingDetailsToMatchShippingAddress.bind(
       this
     );
@@ -667,6 +666,7 @@ class StripePaymentForm extends Component {
             />
           </div>
         ) : null}
+
         <div className={css.submitContainer}>
           {hasPaymentErrors ? (
             <span className={css.errorMessage}>{paymentErrorMessage}</span>

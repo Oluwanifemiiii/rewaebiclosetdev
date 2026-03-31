@@ -169,7 +169,13 @@ export const createListingDraftThunk = createAsyncThunk(
 
     // If images should be saved, create array out of the image UUIDs for the API call
     const imageProperty = typeof images !== 'undefined' ? { images: imageIds(images) } : {};
-    const ownListingValues = { ...imageProperty, ...rest };
+
+    // Always set deliveryMethod to 'shipping' so every listing supports delivery
+    const defaultPublicData = {
+      deliveryMethod: 'shipping',
+      ...(rest.publicData || {}),
+    };
+    const ownListingValues = { ...imageProperty, ...rest, publicData: defaultPublicData };
 
     const imageVariantInfo = getImageVariantInfo(config.layout.listingImage);
     const queryParams = {

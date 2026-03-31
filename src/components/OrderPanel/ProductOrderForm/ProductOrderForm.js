@@ -30,6 +30,7 @@ const MAX_QUANTITY_FOR_DROPDOWN = 100;
 const handleFetchLineItems = ({
   quantity,
   deliveryMethod,
+  deliveryAddress,
   displayDeliveryMethod,
   listingId,
   isOwnListing,
@@ -38,6 +39,7 @@ const handleFetchLineItems = ({
 }) => {
   const stockReservationQuantity = Number.parseInt(quantity, 10);
   const deliveryMethodMaybe = deliveryMethod ? { deliveryMethod } : {};
+  const deliveryAddressMaybe = deliveryAddress ? { deliveryAddress } : {};
   const isBrowser = typeof window !== 'undefined';
   if (
     isBrowser &&
@@ -46,7 +48,7 @@ const handleFetchLineItems = ({
     !fetchLineItemsInProgress
   ) {
     onFetchTransactionLineItems({
-      orderData: { stockReservationQuantity, ...deliveryMethodMaybe },
+      orderData: { stockReservationQuantity, ...deliveryMethodMaybe, ...deliveryAddressMaybe },
       listingId,
       isOwnListing,
     });
@@ -141,11 +143,12 @@ const renderForm = formRenderProps => {
     setMounted(true);
 
     // Side-effect: fetch line-items after mounting if possible
-    const { quantity, deliveryMethod } = values;
+    const { quantity, deliveryMethod, deliveryAddress } = values;
     if (quantity && !formRenderProps.hasMultipleDeliveryMethods) {
       handleFetchLineItems({
         quantity,
         deliveryMethod,
+        deliveryAddress,
         displayDeliveryMethod,
         listingId,
         isOwnListing,
@@ -157,11 +160,12 @@ const renderForm = formRenderProps => {
 
   // If form values change, update line-items for the order breakdown
   const handleOnChange = formValues => {
-    const { quantity, deliveryMethod } = formValues.values;
+    const { quantity, deliveryMethod, deliveryAddress } = formValues.values;
     if (mounted) {
       handleFetchLineItems({
         quantity,
         deliveryMethod,
+        deliveryAddress,
         listingId,
         isOwnListing,
         fetchLineItemsInProgress,
@@ -258,6 +262,82 @@ const renderForm = formRenderProps => {
         formId={formId}
         intl={intl}
       />
+
+       {hasStock && values?.quantity && (displayDeliveryMethod ? values?.deliveryMethod : true) && (
+        <div className={css.deliveryAddressSection}>
+          <H6 as="h3" className={css.deliveryAddressTitle}>
+            <FormattedMessage id="ProductOrderForm.deliveryAddressTitle" />
+          </H6>
+          
+          <FieldTextInput
+            id={`${formId}.deliveryAddress.street`}
+            name="deliveryAddress.street"
+            type="text"
+            className={css.addressField}
+            label={intl.formatMessage({ id: 'ProductOrderForm.streetAddressLabel' })}
+            placeholder={intl.formatMessage({ id: 'ProductOrderForm.streetAddressPlaceholder' })}
+            validate={required(
+              intl.formatMessage({ id: 'ProductOrderForm.streetAddressRequired' })
+            )}
+          />
+
+          <div className={css.addressRow}>
+            <FieldTextInput
+              id={`${formId}.deliveryAddress.city`}
+              name="deliveryAddress.city"
+              type="text"
+              className={css.addressFieldHalf}
+              label={intl.formatMessage({ id: 'ProductOrderForm.cityLabel' })}
+              placeholder={intl.formatMessage({ id: 'ProductOrderForm.cityPlaceholder' })}
+              validate={required(
+                intl.formatMessage({ id: 'ProductOrderForm.cityRequired' })
+              )}
+            />
+
+            <FieldTextInput
+              id={`${formId}.deliveryAddress.postalCode`}
+              name="deliveryAddress.postalCode"
+              type="text"
+              className={css.addressFieldHalf}
+              label={intl.formatMessage({ id: 'ProductOrderForm.postalCodeLabel' })}
+              placeholder={intl.formatMessage({ id: 'ProductOrderForm.postalCodePlaceholder' })}
+            />
+          </div>
+
+          <FieldTextInput
+            id={`${formId}.deliveryAddress.state`}
+            name="deliveryAddress.state"
+            type="text"
+            className={css.addressField}
+            label={intl.formatMessage({ id: 'ProductOrderForm.stateLabel' })}
+            placeholder={intl.formatMessage({ id: 'ProductOrderForm.statePlaceholder' })}
+          />
+
+          <FieldTextInput
+            id={`${formId}.deliveryAddress.country`}
+            name="deliveryAddress.country"
+            type="text"
+            className={css.addressField}
+            label={intl.formatMessage({ id: 'ProductOrderForm.countryLabel' })}
+            placeholder={intl.formatMessage({ id: 'ProductOrderForm.countryPlaceholder' })}
+            validate={required(
+              intl.formatMessage({ id: 'ProductOrderForm.countryRequired' })
+            )}
+          />
+
+          <FieldTextInput
+            id={`${formId}.deliveryAddress.phone`}
+            name="deliveryAddress.phone"
+            type="tel"
+            className={css.addressField}
+            label={intl.formatMessage({ id: 'ProductOrderForm.phoneLabel' })}
+            placeholder={intl.formatMessage({ id: 'ProductOrderForm.phonePlaceholder' })}
+            validate={required(
+              intl.formatMessage({ id: 'ProductOrderForm.phoneRequired' })
+            )}
+          />
+        </div>
+      )}
 
       {showBreakdown ? (
         <div className={css.breakdownWrapper}>

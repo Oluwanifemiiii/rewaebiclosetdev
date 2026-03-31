@@ -54,6 +54,7 @@ router.get('/initiate-login-as', initiateLoginAs);
 router.get('/login-as', loginAs);
 router.post('/transaction-line-items', transactionLineItems);
 router.post('/initiate-privileged', initiatePrivileged);
+router.post('/save-delivery-data', require('./api/save-delivery-data'));
 router.post('/transition-privileged', transitionPrivileged);
 router.post('/delete-account', deleteAccount);
 // Add this line with your other routes in apiRouter.js
@@ -64,7 +65,7 @@ router.post('/transition-to-paystack-payment', require('./api/transition-to-pays
 // This endpoint is called to create a new user after user has confirmed
 // they want to continue with the data fetched from IdP (e.g. name and email)
 router.post('/auth/create-user-with-idp', createUserWithIdp);
-
+router.post('/calculate-shipping', require('./api/calculate-shipping'));
 // Facebook authentication endpoints
 
 // This endpoint is called when user wants to initiate authenticaiton with Facebook

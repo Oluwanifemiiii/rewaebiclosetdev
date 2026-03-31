@@ -86,3 +86,40 @@
     margin: 24px 0;
   }
 }
+
+.deliveryAddressSection {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background-color: #f7f7f7;
+  border-radius: 8px;
+}
+
+.deliveryAddressTitle {
+  margin-bottom: 1rem;
+  color: var(--matterColor);
+}
+
+.addressField {
+  margin-bottom: 1rem;
+}
+
+.addressRow {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.addressFieldHalf {
+  flex: 1;
+}
+
+@media (max-width: 768px) {
+  .addressRow {
+    flex-direction: column;
+    gap: 0;
+  }
+  
+  .addressFieldHalf {
+    margin-bottom: 1rem;
+  }
+}

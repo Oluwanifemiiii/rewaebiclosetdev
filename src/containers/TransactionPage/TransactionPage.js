@@ -8,6 +8,8 @@ import appSettings from '../../config/settings.js';
 import { useConfiguration } from '../../context/configurationContext';
 import { useRouteConfiguration } from '../../context/routeConfigurationContext';
 import { FormattedMessage, useIntl } from '../../util/reactIntl';
+import { types as sdkTypes } from '../../util/sdkLoader';
+const { Money } = sdkTypes;
 import { createResourceLocatorString, findRouteByRouteName } from '../../util/routes';
 import {
   LINE_ITEM_OFFER,
@@ -498,7 +500,6 @@ export const TransactionPageComponent = props => {
     currentUser &&
     transaction?.id &&
     transaction?.id?.uuid === params.id &&
-    transaction?.attributes?.lineItems &&
     transaction.customer &&
     transaction.provider &&
     !fetchTransactionError;
@@ -631,15 +632,61 @@ export const TransactionPageComponent = props => {
   const txIsManualSeller = txSellerType === 'manual';
   const txDisplayCurrency = txIsManualSeller ? 'NGN' : config.currency;
 
+  // Read delivery data from sessionStorage (saved by CheckoutPage immediately on navigation)
+  // This works instantly without waiting for any async API call
+  const sessionDeliveryData = (() => {
+    try {
+      const txId = transaction?.id?.uuid;
+      if (!txId) return null;
+      const stored = sessionStorage.getItem(`delivery_data_${txId}`);
+      return stored ? JSON.parse(stored) : null;
+    } catch (e) { return null; }
+  })();
+
+  console.log('🧾 [TransactionPage] sessionDeliveryData:', JSON.stringify(sessionDeliveryData));
+  console.log('🧾 [TransactionPage] metadata:', JSON.stringify(transaction?.attributes?.metadata));
+  console.log('🧾 [TransactionPage] lineItems:', JSON.stringify(transaction?.attributes?.lineItems?.map(li => ({ code: li.code, amount: li.lineTotal?.amount }))));
+
+  // Priority: sessionStorage (immediate) > metadata (async) > protectedData
+  const deliveryFeeInProtectedData =
+    sessionDeliveryData?.deliveryFeeInSubunits ||
+    transaction?.attributes?.metadata?.deliveryFeeInSubunits ||
+    transaction?.attributes?.protectedData?.deliveryFeeInSubunits;
+
+  console.log('🧾 [TransactionPage] txMetadata source check — protectedData.deliveryAddress:', transaction?.attributes?.protectedData?.deliveryAddress);
+  const txForBreakdown = (() => {
+    if (!deliveryFeeInProtectedData || !transaction?.attributes?.lineItems?.length) return transaction;
+    const existingLines = transaction.attributes.lineItems || [];
+    if (existingLines.find(li => li.code === 'line-item/delivery-fee')) return transaction; // already there
+    const deliveryMoney = new Money(deliveryFeeInProtectedData, txDisplayCurrency);
+    const deliveryLine = {
+      code: 'line-item/delivery-fee',
+      unitPrice: deliveryMoney,
+      quantity: 1,
+      lineTotal: deliveryMoney,
+      includeFor: ['customer', 'provider'],
+      reversal: false,
+    };
+    const existingPayin = transaction.attributes.payinTotal?.amount || 0;
+    return {
+      ...transaction,
+      attributes: {
+        ...transaction.attributes,
+        lineItems: [...existingLines, deliveryLine],
+        payinTotal: new Money(existingPayin + deliveryFeeInProtectedData, txDisplayCurrency),
+      },
+    };
+  })();
+
   const orderBreakdownMaybe = hasLineItems
     ? {
         orderBreakdown: (
           <OrderBreakdown
             className={css.breakdown}
             userRole={transactionRole}
-            transaction={transaction}
+            transaction={txForBreakdown}
             {...txBookingMaybe}
-            currency={txDisplayCurrency}  // ✅ NGN for manual sellers!
+            currency={txDisplayCurrency}
             marketplaceName={config.marketplaceName}
           />
         ),
@@ -678,6 +725,17 @@ export const TransactionPageComponent = props => {
       provider={provider}
       transitions={txTransitions}
       protectedData={transaction?.attributes?.protectedData}
+      txMetadata={
+          sessionDeliveryData ||
+          transaction?.attributes?.metadata ||
+          // protectedData fallback for when transition-privileged saves it there
+          (transaction?.attributes?.protectedData?.deliveryAddress || transaction?.attributes?.protectedData?.deliveryFeeInSubunits
+            ? {
+                deliveryAddress: transaction?.attributes?.protectedData?.deliveryAddress,
+                deliveryFeeInSubunits: transaction?.attributes?.protectedData?.deliveryFeeInSubunits,
+              }
+            : null)
+        }
       messages={messages}
       initialMessageFailed={initialMessageFailed}
       savePaymentMethodFailed={savePaymentMethodFailed}

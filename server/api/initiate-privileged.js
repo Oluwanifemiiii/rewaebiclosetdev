@@ -60,6 +60,36 @@ const isManualSeller = (listingResponse) => {
 
 module.exports = (req, res) => {
   const { isSpeculative, orderData, bodyParams, queryParams } = req.body || {};
+
+  // deliveryFeeInSubunits and deliveryAddress may come via bodyParams.params
+  // if the duck didn't put them in orderData correctly
+  const deliveryFeeFromParams = bodyParams?.params?.deliveryFeeInSubunits;
+  const deliveryAddressFromParams = bodyParams?.params?.deliveryAddress;
+
+  // ── Tax fields: extract customer billing address and payment gateway ──
+  const customerAddressFromParams =
+    orderData?.customerAddress ||
+    bodyParams?.params?.customerAddress ||
+    null;
+  const paymentGatewayFromParams =
+    orderData?.paymentGateway ||
+    bodyParams?.params?.paymentGateway ||
+    'stripe';
+
+  const enrichedOrderData = {
+    ...orderData,
+    ...(deliveryFeeFromParams ? { deliveryFeeInSubunits: deliveryFeeFromParams } : {}),
+    ...(deliveryAddressFromParams ? { deliveryAddress: deliveryAddressFromParams } : {}),
+    // Tax fields
+    ...(customerAddressFromParams ? { customerAddress: customerAddressFromParams } : {}),
+    paymentGateway: paymentGatewayFromParams,
+  };
+
+  console.log('📦 [initiate-privileged] deliveryFeeInSubunits from params:', deliveryFeeFromParams);
+  console.log('📦 [initiate-privileged] deliveryAddress from params:', deliveryAddressFromParams);
+  console.log('📦 [initiate-privileged] customerAddress for tax:', customerAddressFromParams);
+  console.log('📦 [initiate-privileged] paymentGateway:', paymentGatewayFromParams);
+
   const transitionName = bodyParams.transition;
   const sdk = getSdk(req, res);
   let lineItems = null;
@@ -68,7 +98,7 @@ module.exports = (req, res) => {
 
 
   listingPromise(sdk, bodyParams?.params?.listingId)
-    .then(showListingResponse => {
+    .then(async showListingResponse => {
       const listing = showListingResponse.data.data;
       const processAlias = bodyParams.processAlias || listing.attributes?.publicData?.transactionProcessAlias;
       const isManual = isManualSeller(showListingResponse);
@@ -76,34 +106,52 @@ module.exports = (req, res) => {
       console.log('Is manual seller?', isManual);
       console.log('Process alias:', processAlias);
 
-      // ✅ For manual sellers, skip commission fetch and line item calculation
+      // ✅ For manual sellers, build line items with commission (same as Stripe sellers)
       if (isManual || processAlias?.includes('manual')) {
-        console.log('✅ Manual seller detected - skipping Stripe line items');
+        console.log('✅ Manual seller detected - building line items with commission');
 
-                // Line 99 area:
-        const currency = orderData.currency || listing.attributes.price?.currency || 'USD';
-                metadataMaybe = getMetadata(orderData, transitionName);
+        return fetchCommission(sdk).then(fetchAssetsResponse => {
+          const commissionAsset = fetchAssetsResponse.data.data[0];
+          const currency = orderData.currency || listing.attributes.price?.currency || 'USD';
+          const { providerCommission } =
+            commissionAsset?.type === 'jsonAsset' ? commissionAsset.attributes.data : {};
 
-        // ✅ Calculate simple line items without Stripe fees
-        // These will be stored in protectedData, not passed to API
-        const price = listing.attributes.price;
-        const { offerInSubunits } = orderData || {};
-        
-        // Use offer amount if this is a negotiation, otherwise use listing price
-        const amount = offerInSubunits || price?.amount || 0;
-        
-        lineItems = [
-          {
-            code: 'line-item/item',
-            unitPrice: new Money(amount, currency),
-            quantity: 1,
-            includeFor: ['customer', 'provider'],
-          },
-        ];
+          metadataMaybe = getMetadata(orderData, transitionName);
 
-        console.log('Manual line items:', lineItems);
+          const price = listing.attributes.price;
+          const { offerInSubunits } = orderData || {};
+          const amount = offerInSubunits || price?.amount || 0;
 
-        return getTrustedSdk(req);
+          // ── Provider commission (same % as Stripe sellers from Console) ──
+          const hasProviderCommission =
+            providerCommission?.percentage != null && providerCommission.percentage > 0;
+          const commissionAmount = hasProviderCommission
+            ? Math.round(amount * (providerCommission.percentage / 100))
+            : 0;
+
+          lineItems = [
+            {
+              code: 'line-item/item',
+              unitPrice: new Money(amount, currency),
+              quantity: 1,
+              includeFor: ['customer', 'provider'],
+            },
+            // Provider commission (negative — deducted from provider payout)
+            ...(hasProviderCommission
+              ? [
+                  {
+                    code: 'line-item/provider-commission',
+                    unitPrice: new Money(amount, currency),
+                    percentage: -providerCommission.percentage,
+                    includeFor: ['provider'],
+                  },
+                ]
+              : []),
+          ];
+
+          console.log('Manual line items (with commission):', lineItems);
+          return getTrustedSdk(req);
+        });
       } else {
         // ✅ Regular Stripe flow
         console.log('Regular Stripe seller - calculating with commission');
@@ -111,16 +159,16 @@ module.exports = (req, res) => {
         return Promise.all([
           showListingResponse,
           fetchCommission(sdk)
-        ]).then(([_, fetchAssetsResponse]) => {
+        ]).then(async ([_, fetchAssetsResponse]) => {
           const commissionAsset = fetchAssetsResponse.data.data[0];
-          // Line 99 area:
           const currency = orderData.currency || listing.attributes.price?.currency || 'USD';
           const { providerCommission, customerCommission } =
             commissionAsset?.type === 'jsonAsset' ? commissionAsset.attributes.data : {};
 
-          lineItems = transactionLineItems(
+          // transactionLineItems is now async (Stripe Tax API)
+          lineItems = await transactionLineItems(
             listing,
-            getFullOrderData(orderData, bodyParams, currency),
+            getFullOrderData(enrichedOrderData, bodyParams, currency),
             providerCommission,
             customerCommission
           );
@@ -142,18 +190,24 @@ module.exports = (req, res) => {
           ? listingIdRaw.uuid
           : listingIdRaw;
 
+      const deliveryAddressMaybe = enrichedOrderData?.deliveryAddress
+        ? { deliveryAddress: enrichedOrderData.deliveryAddress }
+        : {};
+
+      console.log('📦 deliveryFeeInSubunits in orderData:', orderData?.deliveryFeeInSubunits);
+      console.log('📦 deliveryAddress in orderData:', orderData?.deliveryAddress);
+      console.log('📦 deliveryAddress in params.protectedData:', params?.protectedData?.deliveryAddress);
+
       // ✅ For manual sellers, store line items in protectedData
-      // This bypasses Stripe validation
       const body = isManual
         ? {
             ...bodyParams,
             params: {
               ...params,
               listingId: listingIdNormalized,
-              // ❌ DON'T pass lineItems to API (triggers Stripe validation)
-              // ✅ Store in protectedData instead
               protectedData: {
                 ...params.protectedData,
+                ...deliveryAddressMaybe,
                 lineItems: normalizeLineItems(lineItems),
                 paymentMethod: 'paystack',
                 sellerType: 'manual',
@@ -167,6 +221,10 @@ module.exports = (req, res) => {
               ...params,
               listingId: listingIdNormalized,
               lineItems: normalizeLineItems(lineItems),
+              protectedData: {
+                ...params.protectedData,
+                ...deliveryAddressMaybe,
+              },
               ...metadataMaybe,
             },
           };
@@ -216,7 +274,6 @@ function normalizeLineItems(lineItems) {
   return lineItems.map(li => {
     const normalized = { ...li };
 
-    // Normalize unitPrice
     if (normalized.unitPrice) {
       if (typeof normalized.unitPrice === 'object' && normalized.unitPrice.amount) {
         normalized.unitPrice = {
@@ -226,12 +283,10 @@ function normalizeLineItems(lineItems) {
       }
     }
 
-    // Normalize quantity
     if (normalized.quantity != null) {
       normalized.quantity = Number(normalized.quantity);
     }
 
-    // Normalize percentage
     if (normalized.percentage != null) {
       normalized.percentage = Number(normalized.percentage);
     }

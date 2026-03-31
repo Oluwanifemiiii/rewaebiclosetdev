@@ -19,12 +19,18 @@ const initiateOrderPayloadCreator = (
   // If we already have a transaction ID, we should transition, not initiate.
   const isTransition = !!transactionId;
 
-  const { deliveryMethod, quantity, bookingDates, ...otherOrderParams } = orderParams;
+  const { deliveryMethod, deliveryFeeInSubunits, deliveryAddress, customerAddress, paymentGateway, quantity, bookingDates, ...otherOrderParams } = orderParams;
   const quantityMaybe = quantity ? { stockReservationQuantity: quantity } : {};
   const bookingParamsMaybe = bookingDates || {};
 
   // Parameters only for client app's server
-  const orderData = deliveryMethod ? { deliveryMethod } : {};
+  const orderData = {
+    ...(deliveryMethod ? { deliveryMethod } : {}),
+    ...(deliveryFeeInSubunits ? { deliveryFeeInSubunits } : {}),
+    ...(deliveryAddress ? { deliveryAddress } : {}),
+    ...(customerAddress ? { customerAddress } : {}),
+    ...(paymentGateway ? { paymentGateway } : {}),
+  };
 
   // Parameters for Marketplace API
   const transitionParams = {
@@ -290,6 +296,10 @@ const speculateTransactionPayloadCreator = (
   const {
     deliveryMethod,
     priceVariantName,
+    deliveryFeeInSubunits,
+    deliveryAddress,
+    customerAddress,
+    paymentGateway,
     quantity,
     bookingDates,
     ...otherOrderParams
@@ -297,10 +307,15 @@ const speculateTransactionPayloadCreator = (
   const quantityMaybe = quantity ? { stockReservationQuantity: quantity } : {};
   const bookingParamsMaybe = bookingDates || {};
 
-  // Parameters only for client app's server
+  // Parameters only for client app's server (passed as orderData to lineItems.js)
   const orderData = {
     ...(deliveryMethod ? { deliveryMethod } : {}),
     ...(priceVariantName ? { priceVariantName } : {}),
+    // deliveryFeeInSubunits must be in orderData so lineItems.js can add the delivery fee line item
+    ...(deliveryFeeInSubunits ? { deliveryFeeInSubunits } : {}),
+    ...(deliveryAddress ? { deliveryAddress } : {}),
+    ...(customerAddress ? { customerAddress } : {}),
+    ...(paymentGateway ? { paymentGateway } : {}),
   };
 
   // Parameters for Marketplace API

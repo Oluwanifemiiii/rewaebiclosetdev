@@ -88,3 +88,48 @@
     margin-top: 100px;
   }
 }
+
+.shippingOriginSection {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background-color: #f9f9f9;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+}
+ 
+.shippingOriginTitle {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: var(--matterColor);
+}
+ 
+.shippingOriginDescription {
+  font-size: 0.875rem;
+  color: var(--matterColorAnti);
+  margin-bottom: 1.5rem;
+  line-height: 1.5;
+}
+ 
+.addressRow {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+ 
+.inputHalf {
+  flex: 1;
+}
+ 
+.shippingRateSection {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e0e0e0;
+}
+ 
+@media (max-width: 768px) {
+  .addressRow {
+    flex-direction: column;
+    gap: 0;
+  }
+}

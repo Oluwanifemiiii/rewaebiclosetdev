@@ -21,7 +21,14 @@ import { LINE_ITEM_DAY, propTypes } from '../../../util/types';
 import { timeSlotsPerDate } from '../../../util/generators';
 import { BOOKING_PROCESS_NAME } from '../../../transactions/transaction';
 
-import { Form, PrimaryButton, FieldDateRangePicker, FieldSelect, H6 } from '../../../components';
+import {
+  Form,
+  PrimaryButton,
+  FieldDateRangePicker,
+  FieldSelect,
+  FieldTextInput,
+  H6,
+} from '../../../components';
 
 import EstimatedCustomerBreakdownMaybe from '../EstimatedCustomerBreakdownMaybe';
 
@@ -794,7 +801,7 @@ export const BookingDatesForm = props => {
               }}
             />
 
-            {seatsEnabled ? (
+                        {seatsEnabled ? (
               <FieldSelect
                 name="seats"
                 id="seats"

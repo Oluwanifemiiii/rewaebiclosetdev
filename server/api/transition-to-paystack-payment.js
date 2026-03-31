@@ -3,7 +3,7 @@ const { handleError } = require('../api-util/sdk');
 
 module.exports = async (req, res) => {
   try {
-    const { transactionId, paystackReference, amount } = req.body;
+    const { transactionId, paystackReference, amount, deliveryAddress, deliveryFeeInSubunits } = req.body;
 
     console.log('=== TRANSITION TO PAYSTACK PAYMENT ===');
     console.log('Transaction ID:', transactionId);
@@ -35,6 +35,8 @@ module.exports = async (req, res) => {
           paystack: true,
           paystackReference,
           paystackAmount: amount,
+          ...(deliveryAddress ? { deliveryAddress } : {}),
+          ...(deliveryFeeInSubunits ? { deliveryFeeInSubunits } : {}),
         },
       },
     });

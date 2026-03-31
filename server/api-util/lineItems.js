@@ -1,3 +1,5 @@
+// server/api-util/lineItems.js
+
 const {
   calculateQuantityFromDates,
   calculateQuantityFromHours,
@@ -8,35 +10,157 @@ const {
 const { types } = require('sharetribe-flex-sdk');
 const { Money } = types;
 
+// ============================================================================
+// TAX CALCULATION
+// ============================================================================
+
+// Nigeria VAT rate — used for Paystack payments
+const NIGERIA_VAT_RATE = 7.5;
+
 /**
- * Get quantity and add extra line-items that are related to delivery method
+ * Calculate tax using Stripe Tax API.
  *
- * @param {Object} orderData should contain stockReservationQuantity and deliveryMethod
- * @param {*} publicData should contain shipping prices
- * @param {*} currency should point to the currency of listing's price.
+ * Prerequisites:
+ *   1. npm install stripe
+ *   2. Enable Stripe Tax in Dashboard: https://dashboard.stripe.com/tax
+ *   3. Add tax registrations for your jurisdictions
+ *   4. Set your preset product tax code
+ *
+ * @param {number} amountInSubunits - Taxable amount in smallest currency unit
+ * @param {string} currency - ISO currency code
+ * @param {Object} customerAddress - Customer billing address
+ * @returns {number} tax amount in subunits, or 0
  */
+const calculateStripeTax = async (amountInSubunits, currency, customerAddress) => {
+  try {
+    const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+
+    if (!customerAddress?.country) {
+      console.log('[Tax] No customer country — skipping Stripe Tax');
+      return 0;
+    }
+
+    // Build address object with only non-empty fields
+    const address = {};
+    if (customerAddress.country) address.country = customerAddress.country;
+    if (customerAddress.state) address.state = customerAddress.state;
+    if (customerAddress.postal_code) address.postal_code = customerAddress.postal_code;
+    if (customerAddress.city) address.city = customerAddress.city;
+    if (customerAddress.line1) address.line1 = customerAddress.line1;
+
+    const calculation = await stripe.tax.calculations.create({
+      currency: currency.toLowerCase(),
+      line_items: [
+        {
+          amount: amountInSubunits,
+          reference: 'marketplace-order',
+          tax_code: 'txcd_99999999', // General tangible goods
+        },
+      ],
+      customer_details: {
+        address,
+        address_source: 'billing',
+      },
+    });
+
+    const taxAmount = calculation.tax_amount_exclusive || 0;
+    console.log(`[Tax] Stripe Tax: ${taxAmount} ${currency} (calc: ${calculation.id})`);
+    return taxAmount;
+  } catch (err) {
+    console.error('[Tax] Stripe Tax failed:', err.message);
+    // Don't block the transaction — proceed without tax
+    return 0;
+  }
+};
+
+/**
+ * Calculate Nigerian VAT (7.5%) for Paystack payments.
+ *
+ * @param {number} amountInSubunits - Taxable amount in kobo
+ * @returns {number} VAT amount in kobo
+ */
+const calculateNigeriaVAT = (amountInSubunits) => {
+  const vat = Math.round(amountInSubunits * (NIGERIA_VAT_RATE / 100));
+  console.log(`[Tax] Nigeria VAT ${NIGERIA_VAT_RATE}%: ${vat} kobo (on ${amountInSubunits})`);
+  return vat;
+};
+
+/**
+ * Build a tax line item if there's a non-zero tax amount.
+ *
+ * @param {number} taxAmount - Tax in subunits
+ * @param {string} currency - ISO currency code
+ * @returns {Array} [] or [taxLineItem]
+ */
+const getTaxLineItemMaybe = (taxAmount, currency) => {
+  if (!taxAmount || taxAmount <= 0) return [];
+  return [
+    {
+      code: 'line-item/tax',
+      unitPrice: new Money(taxAmount, currency),
+      quantity: 1,
+      includeFor: ['customer', 'provider'],
+    },
+  ];
+};
+
+/**
+ * Calculate the order subtotal from the base order line item.
+ */
+const getOrderSubtotal = (order) => {
+  const { unitPrice, quantity, units, seats } = order;
+  if (quantity) return unitPrice.amount * quantity;
+  if (units && seats) return unitPrice.amount * units * seats;
+  return unitPrice.amount;
+};
+
+// ============================================================================
+// DELIVERY FEE (unchanged)
+// ============================================================================
+
+const getDeliveryFeeLineItemMaybe = (orderData, currency) => {
+  const { deliveryFeeInSubunits } = orderData || {};
+  if (!deliveryFeeInSubunits || deliveryFeeInSubunits <= 0) return [];
+
+  return [
+    {
+      code: 'line-item/delivery-fee',
+      unitPrice: new Money(deliveryFeeInSubunits, currency),
+      quantity: 1,
+      includeFor: ['customer', 'provider'],
+    },
+  ];
+};
+
+// ============================================================================
+// QUANTITY HELPERS (unchanged)
+// ============================================================================
+
 const getItemQuantityAndLineItems = (orderData, publicData, currency) => {
-  // Check delivery method and shipping prices
   const quantity = orderData ? orderData.stockReservationQuantity : null;
   const deliveryMethod = orderData && orderData.deliveryMethod;
   const isShipping = deliveryMethod === 'shipping';
-  const isPickup = deliveryMethod === 'pickup';
   const { shippingPriceInSubunitsOneItem, shippingPriceInSubunitsAdditionalItems } =
     publicData || {};
 
-  // Calculate shipping fee if applicable
-  const shippingFee = isShipping
-    ? calculateShippingFee(
-        shippingPriceInSubunitsOneItem,
-        shippingPriceInSubunitsAdditionalItems,
-        currency,
-        quantity
-      )
-    : null;
+  const hasDistanceFee =
+    isShipping &&
+    orderData.deliveryFeeInSubunits &&
+    orderData.deliveryFeeInSubunits > 0;
 
-  // Add line-item for given delivery method.
-  // Note: by default, pickup considered as free and, therefore, we don't add pickup fee line-item
-  const deliveryLineItem = !!shippingFee
+  const shippingFee =
+    isShipping && !hasDistanceFee
+      ? calculateShippingFee(
+          shippingPriceInSubunitsOneItem,
+          shippingPriceInSubunitsAdditionalItems,
+          currency,
+          quantity
+        )
+      : null;
+
+  const deliveryLineItems = hasDistanceFee
+    ? getDeliveryFeeLineItemMaybe(orderData, currency)
+    : shippingFee
     ? [
         {
           code: 'line-item/shipping-fee',
@@ -47,64 +171,38 @@ const getItemQuantityAndLineItems = (orderData, publicData, currency) => {
       ]
     : [];
 
-  return { quantity, extraLineItems: deliveryLineItem };
+  return { quantity, extraLineItems: deliveryLineItems };
 };
 
 const getOfferQuantityAndLineItems = orderData => {
   return { quantity: 1, extraLineItems: [] };
 };
 
-/**
- * Get quantity for fixed bookings with seats.
- * @param {Object} orderData
- * @param {number} [orderData.seats]
- */
 const getFixedQuantityAndLineItems = orderData => {
   const { seats } = orderData || {};
   const hasSeats = !!seats;
-  // If there are seats, the quantity is split to factors: units and seats.
-  // E.g. 1 session x 2 seats (aka unit price is multiplied by 2)
   return hasSeats ? { units: 1, seats, extraLineItems: [] } : { quantity: 1, extraLineItems: [] };
 };
 
-/**
- * Get quantity for arbitrary units for time-based bookings.
- *
- * @param {Object} orderData
- * @param {string} orderData.bookingStart
- * @param {string} orderData.bookingEnd
- * @param {number} [orderData.seats]
- */
 const getHourQuantityAndLineItems = orderData => {
   const { bookingStart, bookingEnd, seats } = orderData || {};
   const hasSeats = !!seats;
   const units =
     bookingStart && bookingEnd ? calculateQuantityFromHours(bookingStart, bookingEnd) : null;
-
-  // If there are seats, the quantity is split to factors: units and seats.
-  // E.g. 3 hours x 2 seats (aka unit price is multiplied by 6)
   return hasSeats ? { units, seats, extraLineItems: [] } : { quantity: units, extraLineItems: [] };
 };
 
-/**
- * Calculate quantity based on days or nights between given bookingDates.
- *
- * @param {Object} orderData
- * @param {string} orderData.bookingStart
- * @param {string} orderData.bookingEnd
- * @param {number} [orderData.seats]
- * @param {'line-item/day' | 'line-item/night'} code
- */
 const getDateRangeQuantityAndLineItems = (orderData, code) => {
   const { bookingStart, bookingEnd, seats } = orderData;
   const hasSeats = !!seats;
   const units =
     bookingStart && bookingEnd ? calculateQuantityFromDates(bookingStart, bookingEnd, code) : null;
-
-  // If there are seats, the quantity is split to factors: units and seats.
-  // E.g. 3 nights x 4 seats (aka unit price is multiplied by 12)
   return hasSeats ? { units, seats, extraLineItems: [] } : { quantity: units, extraLineItems: [] };
 };
+
+// ============================================================================
+// MAIN: transactionLineItems (now async)
+// ============================================================================
 
 /**
  * Returns collection of lineItems (max 50)
@@ -113,73 +211,61 @@ const getDateRangeQuantityAndLineItems = (orderData, code) => {
  * Similarly, the sum of all the line-items included for _provider_ create "payout total".
  * Platform gets the commission, which is the difference between payin and payout totals.
  *
- * Each line items has following fields:
- * - `code`: string, mandatory, indentifies line item type (e.g. \"line-item/cleaning-fee\"), maximum length 64 characters.
- * - `unitPrice`: money, mandatory
- * - `lineTotal`: money
- * - `quantity`: number
- * - `percentage`: number (e.g. 15.5 for 15.5%)
- * - `seats`: number
- * - `units`: number
- * - `includeFor`: array containing strings \"customer\" or \"provider\", default [\":customer\"  \":provider\" ]
- *
- * Line item must have either `quantity` or `percentage` or both `seats` and `units`.
- *
- * `includeFor` defines commissions. Customer commission is added by defining `includeFor` array `["customer"]` and provider commission by `["provider"]`.
+ * NEW optional fields in orderData:
+ *   - orderData.customerAddress   {Object}  Billing address for Stripe Tax
+ *   - orderData.paymentGateway    {string}  'stripe' | 'paystack' (default: 'stripe')
  *
  * @param {Object} listing
  * @param {Object} orderData
- * @param {string} [orderData.priceVariantName] - The name of the price variant (potentially used with bookable unit types)
- * @param {Money} [orderData.offer] - The offer for the offer (if transition intent is "make-offer")
  * @param {Object} providerCommission
  * @param {Object} customerCommission
- * @returns {Array} lineItems
+ * @returns {Promise<Array>} lineItems
  */
-exports.transactionLineItems = (listing, orderData, providerCommission, customerCommission) => {
+exports.transactionLineItems = async (listing, orderData, providerCommission, customerCommission) => {
+  // ── Buy-now shortcut (Paystack direct purchase) ──────────────────────────
+  if (orderData && orderData.buyNow === true) {
+    const price = listing?.attributes?.publicData?.value;
 
-if (orderData && orderData.buyNow === true) {
-  const price = listing?.attributes?.publicData?.value;
+    if (!price) {
+      throw new Error('No buy-now value found in listing.attributes.publicData.value');
+    }
 
-  if (!price) {
-    throw new Error("No buy-now value found in listing.attributes.publicData.value");
-  }
+    const currency = listing.attributes.price.currency;
+    const priceInCents = Math.round(Number(price) * 100);
 
-  const currency = listing.attributes.price.currency;
-  const priceInCents = Math.round(Number(price) * 100);
-
-  return [
-    {
-      // Use a line-item code so the line items are valid for OrderBreakdown
-      // and Marketplace API validation. Use 'line-item/item' for one-off purchases.
+    const baseItem = {
       code: 'line-item/item',
       unitPrice: new Money(priceInCents, currency),
       quantity: 1,
       includeFor: ['customer', 'provider'],
-    },
-    // Add platform fee for provider if needed
-    ...(providerCommission
-      ? [
-          {
-            code: providerCommission.code,
-            percentage: providerCommission.percentage,
-            includeFor: ['provider'],
-          },
-        ]
-      : []),
-    ...(customerCommission
-      ? [
-          {
-            code: customerCommission.code,
-            percentage: customerCommission.percentage,
-            includeFor: ['customer'],
-          },
-        ]
-      : []),
-  ];
-}
+    };
+
+    return [
+      baseItem,
+      ...getDeliveryFeeLineItemMaybe(orderData, currency),
+      ...(providerCommission
+        ? [
+            {
+              code: providerCommission.code,
+              percentage: providerCommission.percentage,
+              includeFor: ['provider'],
+            },
+          ]
+        : []),
+      ...(customerCommission
+        ? [
+            {
+              code: customerCommission.code,
+              percentage: customerCommission.percentage,
+              includeFor: ['customer'],
+            },
+          ]
+        : []),
+    ];
+  }
+
+  // ── Standard flow ────────────────────────────────────────────────────────
   const publicData = listing.attributes.publicData;
-  // Note: the unitType needs to be one of the following:
-  // day, night, hour, fixed, or item (these are related to payment processes)
   const { unitType, priceVariants, priceVariationsEnabled } = publicData;
 
   const isBookable = ['day', 'night', 'hour', 'fixed'].includes(unitType);
@@ -201,21 +287,8 @@ if (orderData && orderData.buyNow === true) {
       ? offer
       : priceAttribute;
 
-  /**
-   * Pricing starts with order's base price:
-   * Listing's price is related to a single unit. It needs to be multiplied by quantity
-   *
-   * Initial line-item needs therefore:
-   * - code (based on unitType)
-   * - unitPrice
-   * - quantity
-   * - includedFor
-   */
-
   const code = `line-item/${unitType}`;
 
-  // Here "extra line-items" means line-items that are tied to unit type
-  // E.g. by default, "shipping-fee" is tied to 'item' aka buying products.
   const quantityAndExtraLineItems =
     unitType === 'item'
       ? getItemQuantityAndLineItems(orderData, publicData, currency)
@@ -231,10 +304,8 @@ if (orderData && orderData.buyNow === true) {
 
   const { quantity, units, seats, extraLineItems } = quantityAndExtraLineItems;
 
-  // Throw error if there is no quantity information given
   if (!quantity && !(units && seats)) {
     const missingFields = [];
-
     if (!quantity) missingFields.push('quantity');
     if (!units) missingFields.push('units');
     if (!seats) missingFields.push('seats');
@@ -250,16 +321,6 @@ if (orderData && orderData.buyNow === true) {
     throw error;
   }
 
-  /**
-   * If you want to use pre-defined component and translations for printing the lineItems base price for order,
-   * you should use one of the codes:
-   * line-item/night, line-item/day, line-item/hour or line-item/item.
-   *
-   * Pre-definded commission components expects line item code to be one of the following:
-   * 'line-item/provider-commission', 'line-item/customer-commission'
-   *
-   * By default OrderBreakdown prints line items inside LineItemUnknownItemsMaybe if the lineItem code is not recognized. */
-
   const quantityOrSeats = !!units && !!seats ? { units, seats } : { quantity };
   const order = {
     code,
@@ -268,11 +329,38 @@ if (orderData && orderData.buyNow === true) {
     includeFor: ['customer', 'provider'],
   };
 
-  // Let's keep the base price (order) as first line item and provider and customer commissions as last.
-  // Note: the order matters only if OrderBreakdown component doesn't recognize line-item.
+  // Delivery fees
+  const bookingDeliveryFees = isBookable
+    ? getDeliveryFeeLineItemMaybe(orderData, currency)
+    : [];
+  const negotiationDeliveryFees = isNegotiationUnitType
+    ? getDeliveryFeeLineItemMaybe(orderData, currency)
+    : [];
+
+  // ── Tax calculation ──────────────────────────────────────────────────────
+  // Tax is only calculated for Stripe payments via Stripe Tax API.
+  // Paystack handles VAT on their end — no need to add it here.
+  const customerAddress = orderData?.customerAddress || null;
+  const paymentGateway = orderData?.paymentGateway || 'stripe';
+
+  let taxAmount = 0;
+
+  if (paymentGateway !== 'paystack' && customerAddress) {
+    // Stripe → use Stripe Tax API (requires customer address)
+    const orderSubtotal = getOrderSubtotal(order);
+    const deliveryFeeAmount = orderData?.deliveryFeeInSubunits || 0;
+    const taxableAmount = orderSubtotal + deliveryFeeAmount;
+    taxAmount = await calculateStripeTax(taxableAmount, currency, customerAddress);
+  }
+
+  const taxLineItem = getTaxLineItemMaybe(taxAmount, currency);
+
   const lineItems = [
     order,
     ...extraLineItems,
+    ...bookingDeliveryFees,
+    ...negotiationDeliveryFees,
+    ...taxLineItem,
     ...getProviderCommissionMaybe(providerCommission, order, currency),
     ...getCustomerCommissionMaybe(customerCommission, order, currency),
   ];

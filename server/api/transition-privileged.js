@@ -56,7 +56,6 @@ const getFullOrderData = (orderData, bodyParams, currency, offers) => {
 
 const getUpdatedMetadata = (orderData, transition, existingMetadata) => {
   const { actor, offerInSubunits } = orderData || {};
-  // NOTE: for default-negotiation process, the actor is always "provider" when making an offer.
   const hasActor = ['provider', 'customer'].includes(actor);
   const by = hasActor ? actor : null;
 
@@ -83,13 +82,44 @@ const getUpdatedMetadata = (orderData, transition, existingMetadata) => {
 module.exports = (req, res) => {
   const { isSpeculative, orderData, bodyParams, queryParams } = req.body || {};
 
+  const deliveryFeeFromParams = 
+    bodyParams?.params?.deliveryFeeInSubunits ||
+    bodyParams?.params?.protectedData?.deliveryFeeInSubunits;
+  const deliveryAddressFromParams = 
+    bodyParams?.params?.deliveryAddress ||
+    bodyParams?.params?.protectedData?.deliveryAddress;
+
+  // ── Tax fields ──
+  const customerAddressFromParams =
+    orderData?.customerAddress ||
+    bodyParams?.params?.customerAddress ||
+    bodyParams?.params?.protectedData?.customerAddress ||
+    null;
+  const paymentGatewayFromParams =
+    orderData?.paymentGateway ||
+    bodyParams?.params?.paymentGateway ||
+    'stripe';
+
+  const enrichedOrderData = {
+    ...orderData,
+    ...(deliveryFeeFromParams ? { deliveryFeeInSubunits: deliveryFeeFromParams } : {}),
+    ...(deliveryAddressFromParams ? { deliveryAddress: deliveryAddressFromParams } : {}),
+    ...(customerAddressFromParams ? { customerAddress: customerAddressFromParams } : {}),
+    paymentGateway: paymentGatewayFromParams,
+  };
+
+  console.log('📦 [transition-privileged] deliveryFeeInSubunits from params:', deliveryFeeFromParams);
+  console.log('📦 [transition-privileged] deliveryAddress from params:', deliveryAddressFromParams);
+  console.log('📦 [transition-privileged] customerAddress for tax:', customerAddressFromParams);
+  console.log('📦 [transition-privileged] paymentGateway:', paymentGatewayFromParams);
+
   const sdk = getSdk(req, res);
   const transitionName = bodyParams.transition;
   let lineItems = null;
   let metadataMaybe = {};
 
   Promise.all([transactionPromise(sdk, bodyParams?.id), fetchCommission(sdk)])
-    .then(responses => {
+    .then(async responses => {
   const [showTransactionResponse, fetchAssetsResponse] = responses;
   const transaction = showTransactionResponse.data.data;
   const listing = getListingRelationShip(showTransactionResponse.data);
@@ -108,21 +138,24 @@ module.exports = (req, res) => {
   const sellerType = author?.attributes?.profile?.publicData?.sellerType;
   const isManualSeller = sellerType === 'manual';
 
-
-
   const currency =
-    orderData.currency ||
+    enrichedOrderData.currency ||
     transaction.attributes.payinTotal?.currency ||
     listing.attributes.price?.currency ||
     'USD';
 
-  
-
-  // ✅ For manual sellers, create simple line items without commission
+  // ✅ For manual sellers, create line items WITH commission
   if (isManualSeller) {
-    console.log('✅ Manual seller - creating line items without Stripe commission');
-    const { offerInSubunits } = orderData || {};
-    
+    console.log('✅ Manual seller - creating line items with commission');
+    const { offerInSubunits } = enrichedOrderData || {};
+
+    const { providerCommission } =
+      commissionAsset?.type === 'jsonAsset' ? commissionAsset.attributes.data : {};
+
+    // ── Provider commission (same % as Stripe sellers from Console) ──
+    const hasProviderCommission =
+      providerCommission?.percentage != null && providerCommission.percentage > 0;
+
     lineItems = [
       {
         code: 'line-item/item',
@@ -130,36 +163,60 @@ module.exports = (req, res) => {
         quantity: 1,
         includeFor: ['customer', 'provider'],
       },
+      // Provider commission (negative — deducted from provider payout)
+      ...(hasProviderCommission
+        ? [
+            {
+              code: 'line-item/provider-commission',
+              unitPrice: { amount: offerInSubunits, currency: currency },
+              percentage: -providerCommission.percentage,
+              includeFor: ['provider'],
+            },
+          ]
+        : []),
     ];
   } else {
     console.log('Regular seller - using commission-based line items');
     const { providerCommission, customerCommission } =
       commissionAsset?.type === 'jsonAsset' ? commissionAsset.attributes.data : {};
 
-    lineItems = transactionLineItems(
+    // transactionLineItems is now async (Stripe Tax API)
+    lineItems = await transactionLineItems(
       listing,
-      getFullOrderData(orderData, bodyParams, currency, existingOffers),
+      getFullOrderData(enrichedOrderData, bodyParams, currency, existingOffers),
       providerCommission,
       customerCommission
     );
   }
 
-
-
-  metadataMaybe = getUpdatedMetadata(orderData, transitionName, existingMetadata);
+  metadataMaybe = getUpdatedMetadata(enrichedOrderData, transitionName, existingMetadata);
 
   return getTrustedSdk(req);
 })
     .then(trustedSdk => {
-      // Omit listingId from params (transition/request-payment-after-inquiry does not need it)
       const { listingId, ...restParams } = bodyParams?.params || {};
 
-      // Add lineItems to the body params
+      const deliveryAddressMaybe = enrichedOrderData?.deliveryAddress
+        ? { deliveryAddress: enrichedOrderData.deliveryAddress }
+        : {};
+      const deliveryFeeMaybe = enrichedOrderData?.deliveryFeeInSubunits
+        ? { deliveryFeeInSubunits: enrichedOrderData.deliveryFeeInSubunits }
+        : {};
+
+      console.log('📦 [transition-privileged] deliveryFeeInSubunits (final):', enrichedOrderData?.deliveryFeeInSubunits);
+      console.log('📦 [transition-privileged] deliveryAddress (final):', enrichedOrderData?.deliveryAddress);
+      console.log('📦 [transition-privileged] restParams.protectedData:', JSON.stringify(restParams.protectedData));
+
       const body = {
         ...bodyParams,
         params: {
           ...restParams,
           lineItems,
+          protectedData: {
+            ...restParams.protectedData,
+            ...deliveryAddressMaybe,
+            ...deliveryFeeMaybe,
+          },
           ...metadataMaybe,
         },
       };

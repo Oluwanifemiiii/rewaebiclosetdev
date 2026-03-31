@@ -18,11 +18,18 @@ module.exports = async (req, res) => {
       unitType,
       listingType,
       transactionProcessAlias,
+      deliveryAddress,
+      deliveryFeeInSubunits,
     } = params;
 
     const requestBody = {
       isSpeculative: false,
-      orderData: {},
+      // Pass deliveryFeeInSubunits in orderData so lineItems.js adds the delivery fee line item
+      orderData: {
+        ...(deliveryFeeInSubunits ? { deliveryFeeInSubunits } : {}),
+        ...(deliveryAddress ? { deliveryAddress } : {}),
+        paymentGateway: 'paystack',
+      },
       bodyParams: {
         processAlias,
         transition,
@@ -38,6 +45,8 @@ module.exports = async (req, res) => {
             unitType,
             listingType,
             transactionProcessAlias,
+            deliveryAddress,
+            ...(deliveryFeeInSubunits ? { deliveryFeeInSubunits } : {}),
           },
         },
       },

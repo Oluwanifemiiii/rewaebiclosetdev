@@ -60,7 +60,6 @@ const getInitialValues = props => {
     shippingPriceInSubunitsAdditionalItems != null
       ? new Money(shippingPriceInSubunitsAdditionalItems, currency)
       : null;
-  const shippingOrigin = protectedData?.shippingOrigin || {};
   const shippingRatePerKm = publicData?.shippingRatePerKm 
     ? new Money(publicData.shippingRatePerKm, currency) 
     : null;
@@ -80,7 +79,6 @@ const getInitialValues = props => {
     deliveryOptions,
     shippingPriceInSubunitsOneItem: shippingOneItemAsMoney,
     shippingPriceInSubunitsAdditionalItems: shippingAdditionalItemsAsMoney,
-    shippingOrigin,
     shippingRatePerKm,
     minimumShippingFee,
   };
@@ -170,7 +168,6 @@ const EditListingDeliveryPanel = props => {
               shippingPriceInSubunitsOneItem,
               shippingPriceInSubunitsAdditionalItems,
               deliveryOptions,
-              shippingOrigin,
               shippingRatePerKm,
               minimumShippingFee,
             } = values;
@@ -196,8 +193,6 @@ const EditListingDeliveryPanel = props => {
                   }
                 : {};
 
-              const shippingOriginMaybe = shippingEnabled && shippingOrigin
-              ? { shippingOrigin }
               : {};
             // New values for listing attributes
             const updateValues = {
@@ -209,7 +204,6 @@ const EditListingDeliveryPanel = props => {
                 ...shippingDataMaybe,
               },
               protectedData: {
-                ...shippingOriginMaybe,
               },
             };
 
@@ -223,7 +217,6 @@ const EditListingDeliveryPanel = props => {
                 shippingPriceInSubunitsOneItem,
                 shippingPriceInSubunitsAdditionalItems,
                 deliveryOptions,
-                shippingOrigin,
                 shippingRatePerKm,
                 minimumShippingFee,
               },

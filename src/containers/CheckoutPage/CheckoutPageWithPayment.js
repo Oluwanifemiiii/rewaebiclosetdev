@@ -19,6 +19,8 @@ import {
 import { setInitialValues } from '../../containers/TransactionPage/TransactionPage.duck';
 // Import shared components
 import { H3, H4, NamedLink, OrderBreakdown, Page, TopbarSimplified } from '../../components';
+import { types as sdkTypes } from '../../util/sdkLoader';
+const { Money } = sdkTypes;
 
 import {
   bookingDatesMaybe,
@@ -40,6 +42,7 @@ import MobileListingImage from './MobileListingImage';
 import MobileOrderBreakdown from './MobileOrderBreakdown';
 import { IconSpinner } from '../../components';
 import css from './CheckoutPage.module.css';
+import DeliveryAddressForm from './DeliveryAddressForm/DeliveryAddressForm';
 
 // Stripe PaymentIntent statuses, where user actions are already completed
 // https://stripe.com/docs/payments/payment-intents/status
@@ -116,12 +119,30 @@ const getOrderParams = (pageData, shippingDetails, optionalPaymentParams, config
   const priceVariant = priceVariants?.find(pv => pv.name === priceVariantName);
   const priceVariantMaybe = priceVariant ? prefixPriceVariantProperties(priceVariant) : {};
 
+  // Distance-based delivery fee set by DeliveryAddressForm when buyer enters their address.
+  // Passed to the server so lineItems.js can add a line-item/delivery-fee.
+  const deliveryFeeInSubunits = pageData.orderData?.deliveryFeeInSubunits;
+  const deliveryFeeInSubunitsMaybe = deliveryFeeInSubunits ? { deliveryFeeInSubunits } : {};
+  const deliveryAddress = pageData.orderData?.deliveryAddress;
+
+  // Customer billing address for tax calculation.
+  // For Stripe payments, this enables Stripe Tax API.
+  // For Paystack payments, Nigeria VAT is applied automatically regardless.
+  const customerAddress = pageData.orderData?.customerAddress;
+  const customerAddressMaybe = customerAddress ? { customerAddress } : {};
+  const paymentGateway = pageData.orderData?.paymentGateway;
+  const paymentGatewayMaybe = paymentGateway ? { paymentGateway } : {};
+
   const protectedDataMaybe = {
     protectedData: {
       ...getTransactionTypeData(listingType, unitType, config),
       ...deliveryMethodMaybe,
       ...shippingDetails,
       ...priceVariantMaybe,
+      // Store delivery info in protectedData — saved on transaction regardless
+      // of whether the transition is privileged or not
+      ...(deliveryAddress ? { deliveryAddress } : {}),
+      ...(deliveryFeeInSubunits ? { deliveryFeeInSubunits } : {}),
     },
   };
 
@@ -141,6 +162,11 @@ const getOrderParams = (pageData, shippingDetails, optionalPaymentParams, config
     ...seatsMaybe,
     ...bookingDatesMaybe(pageData.orderData?.bookingDates),
     ...priceVariantNameMaybe,
+    // deliveryFeeInSubunits at top level so server's lineItems.js can read it from orderData
+    ...deliveryFeeInSubunitsMaybe,
+    // customerAddress and paymentGateway for tax calculation
+    ...customerAddressMaybe,
+    ...paymentGatewayMaybe,
     ...protectedDataMaybe,
     ...optionalPaymentParams,
   };
@@ -224,6 +250,8 @@ export const loadInitialDataForStripePayments = ({
     // ✅ Regular Stripe flow - fetch speculated transaction
     const shippingDetails = {};
     const optionalPaymentParams = {};
+    // Use whatever delivery fee is already stored in pageData (set by DeliveryAddressForm).
+    // loadInitialDataForStripePayments runs outside the component so we read from pageData only.
     const orderParams = getOrderParams(pageData, shippingDetails, optionalPaymentParams, config);
     fetchSpeculatedTransactionIfNeeded(orderParams, pageData, fetchSpeculatedTransaction);
   } else {
@@ -379,11 +407,20 @@ export const CheckoutPageWithPayment = props => {
     stripeCustomerFetched,
     pageData,
     setPageData, // ✅ ADD THIS
+    fetchSpeculatedTransaction,
     processName,
     listingTitle,
     title,
     config,
   } = props;
+
+  // Delivery fee state — declared after props destructuring so pageData is available
+  const [deliveryFeeInSubunits, setDeliveryFeeInSubunits] = useState(
+    pageData?.orderData?.deliveryFeeInSubunits || null
+  );
+  const [buyerDeliveryAddress, setBuyerDeliveryAddress] = useState(
+    pageData?.orderData?.deliveryAddress || null
+  );
 
   const handleSubmit = values => {
     if (submitting) return;
@@ -429,7 +466,42 @@ export const CheckoutPageWithPayment = props => {
       optionalPaymentParams = { setupPaymentMethodForSaving: true };
     }
 
-    const orderParams = getOrderParams(pageData, shippingDetails, optionalPaymentParams, config);
+    // Merge the delivery fee the buyer confirmed into orderData before building params
+    console.log('🛒 [CheckoutPageWithPayment] handleSubmit — building orderParams');
+    console.log('  deliveryFeeInSubunits (state):', deliveryFeeInSubunits);
+    console.log('  buyerDeliveryAddress (state):', buyerDeliveryAddress);
+
+    // Extract billing address from Stripe form for tax calculation.
+    // getBillingDetails returns { name, email, address?: { city, country, line1, line2, postal_code, state } }
+    const billingDetailsForTax = getBillingDetails(formValues, currentUser);
+    const customerAddressFromBilling = billingDetailsForTax?.address
+      ? {
+          country: billingDetailsForTax.address.country,
+          state: billingDetailsForTax.address.state,
+          postal_code: billingDetailsForTax.address.postal_code,
+          city: billingDetailsForTax.address.city,
+          line1: billingDetailsForTax.address.line1,
+        }
+      : null;
+
+    const isPaystackPayment = pageData?.orderData?.paymentMethod === 'paystack';
+
+    const pageDataWithDelivery = {
+      ...pageData,
+      orderData: {
+        ...pageData.orderData,
+        ...(deliveryFeeInSubunits ? { deliveryFeeInSubunits } : {}),
+        ...(buyerDeliveryAddress ? { deliveryAddress: buyerDeliveryAddress } : {}),
+        // Tax: pass billing address and payment gateway to server
+        ...(customerAddressFromBilling ? { customerAddress: customerAddressFromBilling } : {}),
+        paymentGateway: isPaystackPayment ? 'paystack' : 'stripe',
+      },
+    };
+    console.log('  pageDataWithDelivery.orderData:', pageDataWithDelivery.orderData);
+    const orderParams = getOrderParams(pageDataWithDelivery, shippingDetails, optionalPaymentParams, config);
+    console.log('  final orderParams:', orderParams);
+    console.log('  orderParams.protectedData:', JSON.stringify(orderParams.protectedData));
+    console.log('  orderParams.deliveryFeeInSubunits:', orderParams.deliveryFeeInSubunits);
 
     if (pageData?.orderData?.paymentMethod === 'paystack') {
       orderParams.transactionProcessAlias = 'paystack-purchase/release-1';
@@ -461,6 +533,20 @@ export const CheckoutPageWithPayment = props => {
       .then(res => {
         setSubmitting(false);
         const { orderId } = res;
+
+        // Store delivery data in sessionStorage so TransactionPage can display it
+        // immediately before the async save-delivery-data endpoint completes
+        if (deliveryFeeInSubunits || buyerDeliveryAddress) {
+          try {
+            sessionStorage.setItem(
+              `delivery_data_${orderId.uuid}`,
+              JSON.stringify({
+                deliveryFeeInSubunits,
+                deliveryAddress: buyerDeliveryAddress,
+              })
+            );
+          } catch (e) { /* ignore storage errors */ }
+        }
 
         const orderDetailsPath = pathByRouteName('OrderDetailsPage', routeConfiguration, {
           id: orderId.uuid,
@@ -661,8 +747,12 @@ const getPaystackAmountFromListing = (listing, transaction = null) => {
         return;
       }
 
+      // Add delivery fee (no VAT — Paystack handles it)
+      const offerDeliveryFee = deliveryFeeInSubunits || pageData?.orderData?.deliveryFeeInSubunits || 0;
+      amountInKobo = amountInKobo + offerDeliveryFee;
+
       console.log(
-        '✅ Amount for accepting offer:',
+        '✅ Amount for accepting offer (with VAT + delivery):',
         amountInKobo,
         'kobo (₦' + amountInKobo / 100 + ')'
       );
@@ -676,6 +766,8 @@ const getPaystackAmountFromListing = (listing, transaction = null) => {
             transactionId,
             paystackReference: paystackRef,
             amount: amountInKobo,
+            deliveryAddress: buyerDeliveryAddress || pageData?.orderData?.deliveryAddress,
+            deliveryFeeInSubunits: deliveryFeeInSubunits || pageData?.orderData?.deliveryFeeInSubunits,
           }),
         });
 
@@ -698,62 +790,78 @@ const getPaystackAmountFromListing = (listing, transaction = null) => {
         return;
       }
 
-      // ✅ For bookings, ALWAYS use speculated transaction line items (includes date calculation)
+      // ✅ Check if seller is manual to determine if conversion is needed
+      const author = listing?.author;
+      const sellerType = author?.attributes?.profile?.publicData?.sellerType;
+      const isManualSeller = sellerType === 'manual';
+
+      // ── Step 1: Get the BASE amount (before tax and delivery) ──
+      let baseAmountInKobo = null;
+
       if (speculatedTransaction?.attributes?.lineItems) {
         const lineItems = speculatedTransaction.attributes.lineItems;
         console.log('All line items:', lineItems);
 
-        const mainLineItem = lineItems.find(
-          item => item.code.startsWith('line-item/') && !item.reversal
+        // Find the main price line item(s) — exclude tax, delivery, commissions
+        const priceLineItems = lineItems.filter(
+          item =>
+            !item.reversal &&
+            item.code !== 'line-item/tax' &&
+            item.code !== 'line-item/delivery-fee' &&
+            item.code !== 'line-item/shipping-fee' &&
+            item.code !== 'line-item/customer-commission' &&
+            item.code !== 'line-item/provider-commission'
         );
 
-        console.log('Main line item:', mainLineItem);
+        const baseTotalFromLineItems = priceLineItems.reduce((sum, item) => {
+          return sum + (item.lineTotal?.amount || 0);
+        }, 0);
 
-        if (mainLineItem?.lineTotal) {
-          // ✅ Check if seller is manual to determine if conversion is needed
-          const author = listing?.author;
-          const sellerType = author?.attributes?.profile?.publicData?.sellerType;
-          const isManualSeller = sellerType === 'manual';
-          
-          const lineTotalAmount = mainLineItem.lineTotal.amount;
-          const lineTotalCurrency = mainLineItem.lineTotal.currency;
-          
+        console.log('Price line items:', priceLineItems.map(i => ({ code: i.code, amount: i.lineTotal?.amount })));
+        console.log('Base total from line items:', baseTotalFromLineItems);
+
+        if (baseTotalFromLineItems > 0) {
+          const lineCurrency = priceLineItems[0]?.lineTotal?.currency;
+
           if (isManualSeller) {
-            // ✅ Manual seller - amount is ALREADY in NGN (kobo)
-            amountInKobo = lineTotalAmount;
-            console.log('✅ Manual seller - using line total as-is (NGN):', amountInKobo, 'kobo (₦' + (amountInKobo/100) + ')');
+            baseAmountInKobo = baseTotalFromLineItems;
+            console.log('✅ Manual seller - base price (NGN):', baseAmountInKobo, 'kobo (₦' + (baseAmountInKobo/100) + ')');
+          } else if (lineCurrency === 'USD') {
+            const usdWhole = baseTotalFromLineItems / 100;
+            const ngn = usdWhole * 1490;
+            baseAmountInKobo = Math.round(ngn * 100);
+            console.log('💵 International seller - converting:', usdWhole, 'USD →', ngn, 'NGN (', baseAmountInKobo, 'kobo)');
+          } else if (lineCurrency === 'NGN') {
+            baseAmountInKobo = baseTotalFromLineItems;
+            console.log('✅ Already in NGN:', baseAmountInKobo, 'kobo');
           } else {
-            // ✅ International seller - convert from USD to NGN
-            if (lineTotalCurrency === 'USD') {
-              const usdCents = lineTotalAmount;
-              const usdWhole = usdCents / 100;
-              const ngn = usdWhole * 1490;
-              amountInKobo = Math.round(ngn * 100);
-              console.log('💵 International seller - converting:', usdWhole, 'USD →', ngn, 'NGN (', amountInKobo, 'kobo)');
-            } else if (lineTotalCurrency === 'NGN') {
-              amountInKobo = lineTotalAmount;
-              console.log('✅ Already in NGN:', amountInKobo, 'kobo');
-            } else {
-              alert('Unsupported currency: ' + lineTotalCurrency);
-              return;
-            }
+            alert('Unsupported currency: ' + lineCurrency);
+            return;
           }
-          
-          console.log('Final amount for Paystack:', amountInKobo, 'kobo (₦' + (amountInKobo/100) + ')');
-        } else {
-          alert('Could not calculate booking price');
-          return;
         }
-      } else {
-        // ✅ Fallback for non-bookings (purchases)
-        console.log('No speculated transaction, using listing price');
-        amountInKobo = getPaystackAmountFromListing(listing);
       }
 
-      if (!amountInKobo || amountInKobo <= 0) {
+      // Fallback: use listing price if speculated transaction didn't work
+      if (!baseAmountInKobo || baseAmountInKobo <= 0) {
+        console.log('No speculated transaction total, falling back to listing price');
+        baseAmountInKobo = getPaystackAmountFromListing(listing);
+      }
+
+      if (!baseAmountInKobo || baseAmountInKobo <= 0) {
         alert('No valid price found.');
         return;
       }
+
+      // ── Step 2: Add delivery fee ──
+      const payDeliveryFee = deliveryFeeInSubunits || pageData?.orderData?.deliveryFeeInSubunits || 0;
+
+      // ── Step 3: Final total (no VAT — Paystack adds it on their end) ──
+      amountInKobo = baseAmountInKobo + payDeliveryFee;
+
+      console.log('💰 Paystack amount breakdown:');
+      console.log('   Base price:', baseAmountInKobo, 'kobo (₦' + (baseAmountInKobo/100) + ')');
+      console.log('   Delivery:  ', payDeliveryFee, 'kobo (₦' + (payDeliveryFee/100) + ')');
+      console.log('   TOTAL:     ', amountInKobo, 'kobo (₦' + (amountInKobo/100) + ')');
 
       // ✅ Determine the correct process based on listing type
       const publicData = listing.attributes?.publicData || {};
@@ -784,6 +892,10 @@ const getPaystackAmountFromListing = (listing, transaction = null) => {
           : {};
 
       try {
+        console.log('=== ORDER DATA DEBUG ===');
+        console.log('pageData.orderData:', pageData?.orderData);
+        console.log('deliveryAddress:', pageData?.orderData?.deliveryAddress);
+        console.log('=======================');
         const response = await fetch('/api/initiate-transaction', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -796,6 +908,8 @@ const getPaystackAmountFromListing = (listing, transaction = null) => {
               paystackReference: paystackRef,
               amount: amountInKobo,
               ...bookingParams,
+              deliveryAddress: buyerDeliveryAddress || pageData?.orderData?.deliveryAddress,
+              deliveryFeeInSubunits: deliveryFeeInSubunits || pageData?.orderData?.deliveryFeeInSubunits,
             },
           }),
         });
@@ -911,12 +1025,60 @@ const getPaystackAmountFromListing = (listing, transaction = null) => {
   const existingTransaction = ensureTransaction(transaction);
   const speculatedTransaction = ensureTransaction(speculatedTransactionMaybe, {}, null);
 
+  // Detect manual seller and set display currency — must be before tx construction
+  const author = listing?.author;
+  const sellerType = author?.attributes?.profile?.publicData?.sellerType;
+  const isManualSeller = sellerType === 'manual';
+  const displayCurrency = isManualSeller ? 'NGN' : config.currency;
+
+  // ── Determine if delivery address is required and whether it's been provided ──
+  const listingPD = listing?.attributes?.publicData || {};
+  const requiresDeliveryAddress =
+    orderData?.deliveryMethod === 'shipping' ||
+    listingPD.deliveryMethod === 'shipping' ||
+    listingPD.shippingEnabled === true ||
+    !!listingPD.dressLocation ||
+    !!listingPD.dresslocation;
+
+  // Payment buttons should be disabled until the delivery fee has been calculated
+  const deliveryAddressNotReady = requiresDeliveryAddress && !deliveryFeeInSubunits;
+
   // If existing transaction has line-items, it has gone through one of the request-payment transitions.
   // Otherwise, we try to rely on speculatedTransaction for order breakdown data.
-  const tx =
+  const baseTx =
     existingTransaction?.attributes?.lineItems?.length > 0
       ? existingTransaction
       : speculatedTransaction;
+
+  // Inject the delivery fee line item locally into the transaction so the
+  // order breakdown shows it immediately — without re-running speculation
+  // (which clears the breakdown and fails for negotiation listings).
+  const tx = (() => {
+    if (!deliveryFeeInSubunits || !baseTx?.attributes?.lineItems?.length) return baseTx;
+    const existingLines = baseTx.attributes.lineItems || [];
+    // Remove any previous delivery fee line item before adding the new one
+    const linesWithoutDelivery = existingLines.filter(li => li.code !== 'line-item/delivery-fee');
+    const deliveryLineMoney = new Money(deliveryFeeInSubunits, displayCurrency);
+    const deliveryLine = {
+      code: 'line-item/delivery-fee',
+      unitPrice: deliveryLineMoney,
+      quantity: 1,
+      lineTotal: deliveryLineMoney,
+      includeFor: ['customer', 'provider'],
+      reversal: false,
+    };
+    const existingPayin = baseTx.attributes.payinTotal?.amount || 0;
+    const newPayinTotal = new Money(existingPayin + deliveryFeeInSubunits, displayCurrency);
+    console.log('🛒 Injecting delivery fee into tx for breakdown display:', deliveryFeeInSubunits);
+    return {
+      ...baseTx,
+      attributes: {
+        ...baseTx.attributes,
+        lineItems: [...linesWithoutDelivery, deliveryLine],
+        payinTotal: newPayinTotal,
+      },
+    };
+  })();
   const timeZone = listing?.attributes?.availabilityPlan?.timezone;
   const transactionProcessAlias = listing?.attributes?.publicData?.transactionProcessAlias;
   const priceVariantName = tx.attributes.protectedData?.priceVariantName;
@@ -925,12 +1087,6 @@ const getPaystackAmountFromListing = (listing, transaction = null) => {
 
   // Show breakdown only when (speculated?) transaction is loaded
   // (i.e. it has an id and lineItems)
-  // ✅ Detect manual seller and use correct currency
-const author = listing?.author;
-const sellerType = author?.attributes?.profile?.publicData?.sellerType;
-const isManualSeller = sellerType === 'manual';
-const displayCurrency = isManualSeller ? 'NGN' : config.currency;
-
 const breakdown =
   tx.id && tx.attributes.lineItems?.length > 0 ? (
     <OrderBreakdown
@@ -1067,6 +1223,52 @@ if (!isStripeCompatibleCurrency && !isManualSeller) {
             breakdown={breakdown}
             priceVariantName={priceVariantName}
           />
+          {/* Delivery address + live fee calculation for shipping orders */}
+          {(() => {
+            // Show the delivery form if:
+            //   - deliveryMethod is explicitly 'shipping', OR
+            //   - the listing has shippingEnabled, OR
+            //   - the listing has a dresslocation (this marketplace's location field)
+            // This is intentionally broad so the form always shows for
+            // listings that support delivery, regardless of how deliveryMethod was set.
+            const listingPD = listing?.attributes?.publicData || {};
+            // deliveryMethod lives in publicData (set by seller on listing),
+            // not in orderData (which arrives empty from the listing page).
+            // dressLocation has a capital L on this marketplace.
+            const shouldShowDelivery =
+              orderData?.deliveryMethod === 'shipping' ||
+              listingPD.deliveryMethod === 'shipping' ||
+              listingPD.shippingEnabled === true ||
+              !!listingPD.dressLocation ||
+              !!listingPD.dresslocation;
+
+            console.log('🛒 [CheckoutPageWithPayment] Delivery section check:');
+            console.log('  orderData?.deliveryMethod  :', orderData?.deliveryMethod);
+            console.log('  listingPD.deliveryMethod   :', listingPD.deliveryMethod);
+            console.log('  listingPD.shippingEnabled  :', listingPD.shippingEnabled);
+            console.log('  listingPD.dressLocation    :', listingPD.dressLocation);
+            console.log('  → shouldShowDelivery       :', shouldShowDelivery);
+            return null;
+          })()}
+          {(orderData?.deliveryMethod === 'shipping' ||
+            listing?.attributes?.publicData?.deliveryMethod === 'shipping' ||
+            listing?.attributes?.publicData?.shippingEnabled === true ||
+            !!listing?.attributes?.publicData?.dressLocation ||
+            !!listing?.attributes?.publicData?.dresslocation) && (
+            <DeliveryAddressForm
+              listing={listing}
+              onFeeCalculated={({ deliveryAddress, deliveryFeeInSubunits: fee }) => {
+                console.log('🛒 [CheckoutPageWithPayment] onFeeCalculated called');
+                console.log('  fee:', fee, fee != null ? '(₦' + fee/100 + ')' : '(null)');
+                console.log('  deliveryAddress:', deliveryAddress);
+                setBuyerDeliveryAddress(deliveryAddress);
+                if (fee != null) setDeliveryFeeInSubunits(fee);
+              }}
+              currency={displayCurrency}
+              disabled={submitting || paystackProcessing}
+            />
+          )}
+
           <section className={css.paymentContainer}>
             {errorMessages.initiateOrderErrorMessage}
             {errorMessages.listingNotFoundErrorMessage}
@@ -1084,21 +1286,43 @@ if (!isStripeCompatibleCurrency && !isManualSeller) {
                 <>
                   {/* Show Stripe ONLY for non-manual sellers */}
                   {!isManualSeller && showPaymentForm && !isPaystack ? (
-                    <StripePaymentForm
-                      className={css.paymentForm}
-                      onSubmit={values =>
-                        handleSubmit(values, process, props, stripe, submitting, setSubmitting)
-                      }
-                      inProgress={submitting}
-                      formId="CheckoutPagePaymentForm"
-                      providerDisplayName={providerDisplayName}
-                      showInitialMessageInput={showInitialMessageInput}
-                      initialValues={initialValuesForStripePayment}
-                      initiateOrderError={initiateOrderError}
-                      confirmCardPaymentError={confirmCardPaymentError}
-                      confirmPaymentError={confirmPaymentError}
-                      hasHandledCardPayment={hasPaymentIntentUserActionsDone}
-                      loadingData={!stripeCustomerFetched}
+                    <>
+                      {deliveryAddressNotReady && (
+                        <p style={{
+                          backgroundColor: '#FEF3C7',
+                          border: '1px solid #F59E0B',
+                          borderRadius: '8px',
+                          padding: '12px 16px',
+                          marginBottom: '16px',
+                          color: '#92400E',
+                          fontSize: '14px',
+                          fontWeight: 500,
+                        }}>
+                          Please enter your delivery address above before proceeding with payment.
+                        </p>
+                      )}
+                      <StripePaymentForm
+                        className={css.paymentForm}
+                        onSubmit={values => {
+                          if (deliveryAddressNotReady) {
+                            console.log('🔴 Blocked: delivery address not ready');
+                            return;
+                          }
+                          console.log('🔴 StripePaymentForm onSubmit fired');
+                          console.log('🔴 deliveryFeeInSubunits at submit time:', deliveryFeeInSubunits);
+                          console.log('🔴 buyerDeliveryAddress at submit time:', buyerDeliveryAddress);
+                          handleSubmit(values, process, props, stripe, submitting, setSubmitting);
+                        }}
+                        inProgress={submitting || deliveryAddressNotReady}
+                        formId="CheckoutPagePaymentForm"
+                        providerDisplayName={providerDisplayName}
+                        showInitialMessageInput={showInitialMessageInput}
+                        initialValues={initialValuesForStripePayment}
+                        initiateOrderError={initiateOrderError}
+                        confirmCardPaymentError={confirmCardPaymentError}
+                        confirmPaymentError={confirmPaymentError}
+                        hasHandledCardPayment={hasPaymentIntentUserActionsDone}
+                        loadingData={!stripeCustomerFetched}
                       defaultPaymentMethod={
                         hasDefaultPaymentMethod(stripeCustomerFetched, currentUser)
                           ? currentUser.stripeCustomer.defaultPaymentMethod
@@ -1120,20 +1344,21 @@ if (!isStripeCompatibleCurrency && !isManualSeller) {
                       isBooking={isBookingProcessAlias(transactionProcessAlias)}
                       isFuzzyLocation={config.maps.fuzzy.enabled}
                     />
+                    </>
                   ) : null}
 
                   {/* Show Paystack for manual sellers OR when explicitly selected */}
                   {(isManualSeller || isPaystack) && showPaymentForm ? (
                     <button
                       style={{
-                        backgroundColor: paystackProcessing ? '#6b7280' : '#059669',
+                        backgroundColor: (paystackProcessing || deliveryAddressNotReady) ? '#6b7280' : '#059669',
                         color: 'white',
                         padding: '12px 20px',
                         fontSize: '16px',
                         fontWeight: 600,
                         border: 'none',
                         borderRadius: '8px',
-                        cursor: paystackProcessing ? 'not-allowed' : 'pointer',
+                        cursor: (paystackProcessing || deliveryAddressNotReady) ? 'not-allowed' : 'pointer',
                         width: '100%',
                         marginTop: isManualSeller ? '0' : '16px', // No margin if it's the only option
                         transition: '0.25s',
@@ -1141,18 +1366,23 @@ if (!isStripeCompatibleCurrency && !isManualSeller) {
                         alignItems: 'center',
                         justifyContent: 'center',
                         gap: '8px',
+                        opacity: deliveryAddressNotReady ? 0.6 : 1,
                       }}
                       onMouseOver={e =>
-                        !paystackProcessing && (e.target.style.backgroundColor = '#047857')
+                        !(paystackProcessing || deliveryAddressNotReady) && (e.target.style.backgroundColor = '#047857')
                       }
                       onMouseOut={e =>
-                        !paystackProcessing && (e.target.style.backgroundColor = '#059669')
+                        !(paystackProcessing || deliveryAddressNotReady) && (e.target.style.backgroundColor = '#059669')
                       }
                       onClick={handlePaystackPayment}
-                      disabled={paystackProcessing}
+                      disabled={paystackProcessing || deliveryAddressNotReady}
                     >
                       {paystackProcessing && <IconSpinner />}
-                      {paystackProcessing ? 'Processing payment...' : 'Pay with Paystack'}
+                      {paystackProcessing
+                        ? 'Processing payment...'
+                        : deliveryAddressNotReady
+                        ? 'Enter delivery address to continue'
+                        : 'Pay with Paystack'}
                     </button>
                   ) : null}
                 </>

@@ -306,6 +306,38 @@ export const processCheckoutWithPayment = (orderParams, extraPaymentParams) => {
   //////////////////////////////////
   // Step 4: send initial message //
   //////////////////////////////////
+  const fnSaveDeliveryData = fnParams => {
+    // After payment, save delivery info to transaction metadata.
+    // We use metadata (not protectedData) because the regular SDK can write metadata
+    // on non-privileged transitions, whereas protectedData fields are dropped.
+    const orderId = fnParams?.id?.uuid || fnParams?.id;
+    const deliveryFeeInSubunits = orderParams?.deliveryFeeInSubunits;
+    const deliveryAddress = orderParams?.protectedData?.deliveryAddress;
+
+    if (orderId && (deliveryFeeInSubunits || deliveryAddress)) {
+      console.log('💾 Saving delivery data to transaction metadata:', { orderId, deliveryFeeInSubunits, deliveryAddress });
+      fetch('/api/save-delivery-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          transactionId: orderId,
+          deliveryFeeInSubunits,
+          deliveryAddress,
+        }),
+      })
+        .then(r => r.json())
+        .then(d => {
+          console.log('💾 Save delivery data result:', d);
+          if (d.success) {
+            console.log('✅ Delivery data saved to metadata — seller will see it on fresh page load');
+          }
+        })
+        .catch(e => console.error('💾 Save delivery data error:', e));
+    }
+    return Promise.resolve(fnParams);
+  };
+
   const fnSendMessage = fnParams => {
     const orderId = fnParams?.id;
     return onSendMessage({ id: orderId, message });
@@ -345,6 +377,7 @@ export const processCheckoutWithPayment = (orderParams, extraPaymentParams) => {
     fnRequestPayment,
     fnConfirmCardPayment,
     fnConfirmPayment,
+    fnSaveDeliveryData,
     fnSendMessage,
     fnSavePaymentMethod
   );
