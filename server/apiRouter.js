@@ -33,6 +33,9 @@ router.use(
   })
 );
 
+// Parse JSON body for endpoints like calculate-shipping, initiate-transaction, etc.
+router.use(bodyParser.json());
+
 // Deserialize Transit body string to JS data
 router.use((req, res, next) => {
   if (req.get('Content-Type') === 'application/transit+json' && typeof req.body === 'string') {
