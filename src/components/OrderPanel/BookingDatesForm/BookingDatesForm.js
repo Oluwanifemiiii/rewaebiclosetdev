@@ -8,6 +8,7 @@ import { required, bookingDatesRequired, composeValidators } from '../../../util
 import {
   getStartOf,
   addTime,
+  subtractTime,
   isSameDay,
   isDateSameOrAfter,
   isInRange,
@@ -16,6 +17,8 @@ import {
   monthIdString,
   parseDateFromISO8601,
   stringifyDateToISO8601,
+  BUFFER_DAYS,
+  addDayBuffer,
 } from '../../../util/dates';
 import { LINE_ITEM_DAY, propTypes } from '../../../util/types';
 import { timeSlotsPerDate } from '../../../util/generators';
@@ -277,7 +280,26 @@ const isDayBlockedFn = params => {
       return !(hasAvailability || timeSlotEndsOnThisDay);
     }
 
-    // Daily
+    // Daily — also check that buffer days (BUFFER_DAYS before and after) are available.
+    // If any of the buffer days are unavailable, this day should be blocked.
+    if (isDaily && BUFFER_DAYS > 0) {
+      if (!hasAvailabilityOnDay) return true;
+
+      for (let offset = 1; offset <= BUFFER_DAYS; offset++) {
+        const beforeDay = getStartOf(dayInListingTZ, 'day', timeZone, -offset, 'days');
+        const afterDay = getStartOf(dayInListingTZ, 'day', timeZone, offset, 'days');
+        const beforeId = stringifyDateToISO8601(beforeDay, timeZone);
+        const afterId = stringifyDateToISO8601(afterDay, timeZone);
+
+        const beforeAvailable = timeSlotsData[beforeId]?.hasAvailability === true;
+        const afterAvailable = timeSlotsData[afterId]?.hasAvailability === true;
+
+        if (!beforeAvailable || !afterAvailable) return true;
+      }
+      return false;
+    }
+
+    // Daily (no buffer)
     return !hasAvailabilityOnDay;
   };
 };
@@ -357,12 +379,24 @@ const calculateLineItems = (
   const priceVariantMaybe = priceVariantName ? { priceVariantName } : {};
   const seatCount = seats ? parseInt(seats, 10) : 1;
 
-  const orderData = {
-    bookingStart: startDate,
-    bookingEnd: endDate,
-    ...priceVariantMaybe,
-    ...(seatsEnabled && { seats: seatCount }),
-  };
+  // Apply buffer: the customer pays for the full 5 days (2 before + 1 selected + 2 after)
+  let orderData;
+  if (startDate && endDate) {
+    const { bufferedStart, bufferedEnd } = addDayBuffer(startDate, endDate);
+    orderData = {
+      bookingStart: bufferedStart,
+      bookingEnd: bufferedEnd,
+      ...priceVariantMaybe,
+      ...(seatsEnabled && { seats: seatCount }),
+    };
+  } else {
+    orderData = {
+      bookingStart: startDate,
+      bookingEnd: endDate,
+      ...priceVariantMaybe,
+      ...(seatsEnabled && { seats: seatCount }),
+    };
+  }
 
   if (startDate && endDate && !fetchLineItemsInProgress) {
     onFetchTransactionLineItems({
@@ -645,8 +679,8 @@ export const BookingDatesForm = props => {
         const breakdownData =
           startDate && endDate
             ? {
-                startDate,
-                endDate,
+                startDate: subtractTime(startDate, BUFFER_DAYS, 'days', timeZone),
+                endDate: addTime(endDate, BUFFER_DAYS, 'days', timeZone),
               }
             : null;
         const showEstimatedBreakdown =
@@ -761,6 +795,22 @@ export const BookingDatesForm = props => {
               isDayBlocked={isDayBlocked}
               isOutsideRange={isOutsideRange}
               isBlockedBetween={isBlockedBetween(relevantTimeSlots, timeZone)}
+              isBufferDay={day => {
+                // Highlight buffer days (lighter green) around the selected date
+                if (!startDate || !endDate) return false;
+                const localizedDay = timeOfDayFromLocalToTimeZone(day, timeZone);
+                const dayStart = getStartOf(localizedDay, 'day', timeZone);
+
+                // Check if this day falls in the buffer zone (before or after the selected range)
+                for (let offset = 1; offset <= BUFFER_DAYS; offset++) {
+                  const beforeBuffer = getStartOf(startDate, 'day', timeZone, -offset, 'days');
+                  const afterBuffer = getStartOf(endDate, 'day', timeZone, offset - 1, 'days');
+                  if (isSameDay(dayStart, beforeBuffer, timeZone) || isSameDay(dayStart, afterBuffer, timeZone)) {
+                    return true;
+                  }
+                }
+                return false;
+              }}
               disabled={fetchLineItemsInProgress || (priceVariants.length > 0 && !priceVariantName)}
               showLabelAsDisabled={priceVariants.length > 0 && !priceVariantName}
               showPreviousMonthStepper={showPreviousMonthStepper(currentMonth, timeZone)}
@@ -779,14 +829,27 @@ export const BookingDatesForm = props => {
               }}
               onChange={values => {
                 const { startDate: startDateFromValues, endDate: endDateFromValues } = values || {};
+
+                // Auto-set end date to start date for single-day booking with buffer
+                const effectiveEndDate = startDateFromValues && !endDateFromValues
+                  ? startDateFromValues
+                  : endDateFromValues;
+
                 const { startDate, endDate } = values
                   ? getStartAndEndOnTimeZone(
                       startDateFromValues,
-                      endDateFromValues,
+                      effectiveEndDate,
                       isDaily,
                       timeZone
                     )
                   : {};
+
+                // If only start date was selected, auto-set the end date in the form
+                // (single day: start = end = selected day)
+                if (startDateFromValues && !endDateFromValues) {
+                  formApi.change('bookingDates', { startDate, endDate });
+                }
+
                 if (seatsEnabled) {
                   formApi.change('seats', 1);
                 }
@@ -800,6 +863,31 @@ export const BookingDatesForm = props => {
                 });
               }}
             />
+
+            {/* Show the full booking range including buffer days */}
+            {startDate && endDate && (
+              <div style={{
+                fontSize: '13px',
+                color: 'var(--colorGrey500, #8c8c8c)',
+                marginTop: '8px',
+                marginBottom: '4px',
+                padding: '8px 12px',
+                backgroundColor: 'var(--colorGrey50, #f5f5f5)',
+                borderRadius: '4px',
+              }}>
+                <span style={{ fontWeight: 600, color: 'var(--colorGrey700, #4a4a4a)' }}>
+                  Full booking period:
+                </span>{' '}
+                {intl.formatDate(subtractTime(startDate, BUFFER_DAYS, 'days', timeZone), {
+                  weekday: 'short', month: 'short', day: 'numeric',
+                })}
+                {' — '}
+                {intl.formatDate(addTime(endDate, BUFFER_DAYS - 1, 'days', timeZone), {
+                  weekday: 'short', month: 'short', day: 'numeric',
+                })}
+                {' '}({1 + BUFFER_DAYS * 2} days)
+              </div>
+            )}
 
                         {seatsEnabled ? (
               <FieldSelect

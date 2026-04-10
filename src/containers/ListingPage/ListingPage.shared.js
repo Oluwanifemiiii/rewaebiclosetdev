@@ -3,7 +3,7 @@ import { FormattedMessage } from '../../util/reactIntl';
 import { types as sdkTypes } from '../../util/sdkLoader';
 import { createResourceLocatorString, findRouteByRouteName } from '../../util/routes';
 import { convertMoneyToNumber, formatMoney } from '../../util/currency';
-import { timestampToDate } from '../../util/dates';
+import { timestampToDate, addDayBuffer } from '../../util/dates';
 import { hasPermissionToInitiateTransactions, isUserAuthorized } from '../../util/userHelpers';
 import {
   NO_ACCESS_PAGE_INITIATE_TRANSACTIONS,
@@ -248,12 +248,20 @@ export const handleSubmit = parameters => values => {
   } = values;
 
   const bookingMaybe = bookingDates
-    ? {
-        bookingDates: {
-          bookingStart: bookingDates.startDate,
-          bookingEnd: bookingDates.endDate,
-        },
-      }
+    ? (() => {
+        // Apply 2-day buffer before and after the selected single day.
+        // The customer is charged for all 5 days (2 buffer + 1 rental + 2 buffer).
+        const { bufferedStart, bufferedEnd } = addDayBuffer(
+          bookingDates.startDate,
+          bookingDates.endDate
+        );
+        return {
+          bookingDates: {
+            bookingStart: bufferedStart,
+            bookingEnd: bufferedEnd,
+          },
+        };
+      })()
     : bookingStartTime && bookingEndTime
     ? {
         bookingDates: {

@@ -12,7 +12,7 @@ import css from './DeliveryAddressForm.module.css';
  * Nominatim and gets driving distance from OSRM — both free, no API key.
  */
 const DeliveryAddressForm = props => {
-  const { listing, onFeeCalculated, currency = 'NGN', disabled = false, className } = props;
+  const { listing, onFeeCalculated, currency = 'NGN', disabled = false, className, skipFeeCalculation = false } = props;
   const debounceRef = useRef(null);
 
   const [address, setAddress] = useState({ street: '', city: '', state: '', country: 'Nigeria', phone: '' });
@@ -132,9 +132,13 @@ const DeliveryAddressForm = props => {
     const updated = { ...address, [field]: value };
     setAddress(updated);
     console.log('🚚 [DeliveryAddressForm] field changed:', field, '=', value);
+    // Always pass the address back (for saving to protectedData)
     onFeeCalculated && onFeeCalculated({ deliveryAddress: updated, deliveryFeeInSubunits: null });
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => calculateFee(updated), 800);
+    // Only calculate shipping fee if not skipped (i.e. automatic shipping, not pickup/manual)
+    if (!skipFeeCalculation) {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => calculateFee(updated), 800);
+    }
   };
 
   return (
@@ -213,6 +217,7 @@ const DeliveryAddressForm = props => {
         />
       </div>
 
+      {!skipFeeCalculation && (
       <div className={css.feeSection}>
         {calculatingFee && (
           <p className={css.calculating}>Calculating delivery fee...</p>
@@ -230,6 +235,12 @@ const DeliveryAddressForm = props => {
           <p className={css.feeError}>{feeError}</p>
         )}
       </div>
+      )}
+      {skipFeeCalculation && (
+        <p className={css.warning}>
+          Delivery fee will be arranged directly between you and the seller.
+        </p>
+      )}
     </div>
   );
 };

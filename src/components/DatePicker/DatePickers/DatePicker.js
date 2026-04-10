@@ -69,6 +69,7 @@ const CalendarMonth = props => {
     rangeEndHasValue,
     disabled,
     isDayBlocked,
+    isBufferDay,
     onClick,
     onKeyDown,
     hasMinimumNights,
@@ -182,6 +183,7 @@ const CalendarMonth = props => {
                   const isEnd = range && (isSameDay(orderedValues[1], day) || boundaryPointsToEnd);
                   const isToday = isSameDay(day, new Date());
                   const isDisabled = isDayBlocked(day);
+                  const isBuffer = isBufferDay ? isBufferDay(day) : false;
 
                   const hasOneDateSelected =
                     range && Array.isArray(currentValue) && currentValue.length === 1;
@@ -211,6 +213,7 @@ const CalendarMonth = props => {
                     [css.dateStart]: isStart,
                     [css.dateEnd]: isEnd,
                     [css.dateOffset]: isInsideOffsets(day),
+                    [css.dateBuffer]: isBuffer && !isSelected,
                   });
 
                   const Tag = 'span';
@@ -295,6 +298,7 @@ const DatePicker = props => {
     onMonthChange,
     isDayBlocked = () => false,
     isBlockedBetween = () => false,
+    isBufferDay = () => false,
     hasFocusOnMount = true,
   } = props;
 
@@ -558,6 +562,7 @@ const DatePicker = props => {
     firstDayOfWeek,
     disabled,
     isDayBlocked,
+    isBufferDay,
     range,
     hasMinimumNights,
     onClick,

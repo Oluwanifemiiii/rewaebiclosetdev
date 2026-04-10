@@ -1,6 +1,14 @@
 import moment from 'moment-timezone/builds/moment-timezone-with-data-10-year-range.min';
 
 /**
+ * Buffer days configuration for daily bookings.
+ * Each single-day booking blocks BUFFER_DAYS before and after the selected date.
+ * E.g. if BUFFER_DAYS = 2 and user books June 10, the total booking spans June 8–12 (5 days).
+ * The customer is charged for all 5 days.
+ */
+export const BUFFER_DAYS = 2;
+
+/**
  * Input names for the DateRangePicker from DatePicker.
  */
 export const START_DATE = 'startDate';
@@ -398,6 +406,28 @@ export const subtractTime = (date, offset, unit, timeZone) => {
         .tz(timeZone)
     : moment(date).clone();
   return m.subtract(offset, unit).toDate();
+};
+
+/**
+ * Apply buffer days to a single-day daily booking.
+ * Given the customer-selected start and (exclusive) end dates,
+ * returns new start/end with BUFFER_DAYS added before and after.
+ *
+ * For daily bookings: if user selects June 10, startDate = June 10, endDate = June 11 (exclusive).
+ * With BUFFER_DAYS = 2:
+ *   bufferedStart = June 8  (2 days before June 10)
+ *   bufferedEnd   = June 13 (2 days after June 11, exclusive end of June 12)
+ * Total blocked: June 8, 9, 10, 11, 12 = 5 days.
+ *
+ * @param {Date} startDate - booking start (inclusive)
+ * @param {Date} endDate - booking end (exclusive, for daily bookings)
+ * @param {String} [timeZone] - optional IANA time zone key
+ * @returns {Object} { bufferedStart, bufferedEnd }
+ */
+export const addDayBuffer = (startDate, endDate, timeZone) => {
+  const bufferedStart = subtractTime(startDate, BUFFER_DAYS, 'days', timeZone);
+  const bufferedEnd = addTime(endDate, BUFFER_DAYS, 'days', timeZone);
+  return { bufferedStart, bufferedEnd };
 };
 
 ///////////////

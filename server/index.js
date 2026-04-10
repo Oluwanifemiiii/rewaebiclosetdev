@@ -45,6 +45,7 @@ const renderer = require('./renderer');
 const dataLoader = require('./dataLoader');
 const { generateCSPNonce, csp } = require('./csp');
 const sdkUtils = require('./api-util/sdk');
+const { getSDKProxy } = require('./api-util/sdkCacheProxy');
 const cors = require('cors');
 const buildPath = path.resolve(__dirname, '..', 'build');
 const dev = process.env.REACT_APP_ENV === 'development';
@@ -77,9 +78,6 @@ const checkEnvVariables = variables => {
 checkEnvVariables(MANDATORY_ENV_VARIABLES);
 
 const app = express();
-
-// ✅ ADD CORS CONFIGURATION HERE
-const cors = require('cors');
 
 // Configure CORS to accept credentials (cookies)
 app.use(cors({

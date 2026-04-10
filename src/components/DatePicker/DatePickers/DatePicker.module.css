@@ -291,6 +291,21 @@
   }
 }
 
+.dateBuffer {
+  & .renderedDay {
+    background-color: var(--datepickerSelectedBgColor);
+    opacity: 0.45;
+    color: var(--datepickerSelectedFgColor);
+    border-radius: 0;
+  }
+
+  &:hover .renderedDay {
+    background-color: var(--datepickerSelectedBgColor);
+    opacity: 0.55;
+    color: var(--datepickerSelectedHoveredFgColor);
+  }
+}
+
 .dateSelected.dateToday,
 .dateStart.dateToday,
 .dateEnd.dateToday,

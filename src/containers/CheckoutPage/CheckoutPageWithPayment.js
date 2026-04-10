@@ -421,6 +421,11 @@ export const CheckoutPageWithPayment = props => {
   const [buyerDeliveryAddress, setBuyerDeliveryAddress] = useState(
     pageData?.orderData?.deliveryAddress || null
   );
+  // Buyer's chosen delivery method at checkout:
+  //   'automatic' = site calculates shipping fee
+  //   'manual'    = seller and buyer arrange shipping fee privately
+  //   'pickup'    = buyer picks up in person, no address form needed
+  const [deliveryChoice, setDeliveryChoice] = useState('automatic');
 
   const handleSubmit = values => {
     if (submitting) return;
@@ -1033,15 +1038,19 @@ const getPaystackAmountFromListing = (listing, transaction = null) => {
 
   // ── Determine if delivery address is required and whether it's been provided ──
   const listingPD = listing?.attributes?.publicData || {};
-  const requiresDeliveryAddress =
-    orderData?.deliveryMethod === 'shipping' ||
-    listingPD.deliveryMethod === 'shipping' ||
-    listingPD.shippingEnabled === true ||
-    !!listingPD.dressLocation ||
-    !!listingPD.dresslocation;
+
+  // Delivery logic driven by the buyer's checkout dropdown choice:
+  //   'automatic' → show address form + calculate fee
+  //   'manual'    → show address form, skip fee calculation
+  //   'pickup'    → no address form, no fee
+  const isAutomaticShipping = deliveryChoice === 'automatic';
+  const isManualShipping = deliveryChoice === 'manual';
+  const isPickupDelivery = deliveryChoice === 'pickup';
+  const showDeliveryAddressForm = isAutomaticShipping || isManualShipping;
 
   // Payment buttons should be disabled until the delivery fee has been calculated
-  const deliveryAddressNotReady = requiresDeliveryAddress && !deliveryFeeInSubunits;
+  // BUT only for automatic shipping — manual and pickup don't need a fee
+  const deliveryAddressNotReady = isAutomaticShipping && !deliveryFeeInSubunits;
 
   // If existing transaction has line-items, it has gone through one of the request-payment transitions.
   // Otherwise, we try to rely on speculatedTransaction for order breakdown data.
@@ -1223,40 +1232,58 @@ if (!isStripeCompatibleCurrency && !isManualSeller) {
             breakdown={breakdown}
             priceVariantName={priceVariantName}
           />
-          {/* Delivery address + live fee calculation for shipping orders */}
-          {(() => {
-            // Show the delivery form if:
-            //   - deliveryMethod is explicitly 'shipping', OR
-            //   - the listing has shippingEnabled, OR
-            //   - the listing has a dresslocation (this marketplace's location field)
-            // This is intentionally broad so the form always shows for
-            // listings that support delivery, regardless of how deliveryMethod was set.
-            const listingPD = listing?.attributes?.publicData || {};
-            // deliveryMethod lives in publicData (set by seller on listing),
-            // not in orderData (which arrives empty from the listing page).
-            // dressLocation has a capital L on this marketplace.
-            const shouldShowDelivery =
-              orderData?.deliveryMethod === 'shipping' ||
-              listingPD.deliveryMethod === 'shipping' ||
-              listingPD.shippingEnabled === true ||
-              !!listingPD.dressLocation ||
-              !!listingPD.dresslocation;
+          {/* ── Delivery method selector ── */}
+          <section style={{ marginBottom: '24px' }}>
+            <h3 style={{
+              fontSize: '16px',
+              fontWeight: 600,
+              marginBottom: '8px',
+              color: 'var(--colorGrey700, #4a4a4a)',
+            }}>
+              Delivery method
+            </h3>
+            <select
+              value={deliveryChoice}
+              onChange={e => {
+                const choice = e.target.value;
+                setDeliveryChoice(choice);
+                // Reset delivery fee when switching methods
+                setDeliveryFeeInSubunits(null);
+              }}
+              disabled={submitting || paystackProcessing}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                fontSize: '15px',
+                border: '1px solid var(--colorGrey300, #dce0e0)',
+                borderRadius: '6px',
+                backgroundColor: 'var(--colorWhite, #fff)',
+                color: 'var(--colorGrey700, #4a4a4a)',
+                cursor: 'pointer',
+                appearance: 'auto',
+              }}
+            >
+              <option value="automatic">Automatic shipping (calculated by site)</option>
+              <option value="manual">Manual shipping (arrange with seller)</option>
+              <option value="pickup">Pickup (collect in person)</option>
+            </select>
+            {isPickupDelivery && (
+              <p style={{
+                fontSize: '13px',
+                color: 'var(--colorGrey500, #8c8c8c)',
+                marginTop: '6px',
+                marginBottom: 0,
+              }}>
+                You'll arrange pickup details directly with the seller.
+              </p>
+            )}
+          </section>
 
-            console.log('🛒 [CheckoutPageWithPayment] Delivery section check:');
-            console.log('  orderData?.deliveryMethod  :', orderData?.deliveryMethod);
-            console.log('  listingPD.deliveryMethod   :', listingPD.deliveryMethod);
-            console.log('  listingPD.shippingEnabled  :', listingPD.shippingEnabled);
-            console.log('  listingPD.dressLocation    :', listingPD.dressLocation);
-            console.log('  → shouldShowDelivery       :', shouldShowDelivery);
-            return null;
-          })()}
-          {(orderData?.deliveryMethod === 'shipping' ||
-            listing?.attributes?.publicData?.deliveryMethod === 'shipping' ||
-            listing?.attributes?.publicData?.shippingEnabled === true ||
-            !!listing?.attributes?.publicData?.dressLocation ||
-            !!listing?.attributes?.publicData?.dresslocation) && (
+          {/* ── Delivery address form (shown for automatic & manual shipping, hidden for pickup) ── */}
+          {showDeliveryAddressForm && (
             <DeliveryAddressForm
               listing={listing}
+              skipFeeCalculation={isManualShipping}
               onFeeCalculated={({ deliveryAddress, deliveryFeeInSubunits: fee }) => {
                 console.log('🛒 [CheckoutPageWithPayment] onFeeCalculated called');
                 console.log('  fee:', fee, fee != null ? '(₦' + fee/100 + ')' : '(null)');
