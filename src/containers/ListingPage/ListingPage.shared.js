@@ -249,8 +249,8 @@ export const handleSubmit = parameters => values => {
 
   const bookingMaybe = bookingDates
     ? (() => {
-        // Apply 2-day buffer before and after the selected single day.
-        // The customer is charged for all 5 days (2 buffer + 1 rental + 2 buffer).
+        // Apply 2-day buffer: the booking blocks 5 days but the customer pays for 1 day.
+        // We pass the original dates as displayStart/displayEnd for pricing.
         const { bufferedStart, bufferedEnd } = addDayBuffer(
           bookingDates.startDate,
           bookingDates.endDate
@@ -259,6 +259,8 @@ export const handleSubmit = parameters => values => {
           bookingDates: {
             bookingStart: bufferedStart,
             bookingEnd: bufferedEnd,
+            displayStart: bookingDates.startDate,
+            displayEnd: bookingDates.endDate,
           },
         };
       })()

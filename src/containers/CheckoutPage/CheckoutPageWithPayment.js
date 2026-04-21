@@ -275,9 +275,10 @@ export const loadInitialDataForStripePayments = ({
       return;
     }
 
-    const start = new Date(bookingDates.bookingStart);
-    const end = new Date(bookingDates.bookingEnd);
+    const start = new Date(bookingDates.displayStart || bookingDates.bookingStart);
+    const end = new Date(bookingDates.displayEnd || bookingDates.bookingEnd);
     
+    // Use display dates (1 day) for pricing, not buffered dates (5 days)
     let quantity = 1;
     if (unitType === 'day') {
       quantity = Math.ceil((end - start) / (1000 * 60 * 60 * 24));

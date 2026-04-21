@@ -299,6 +299,7 @@ const DatePicker = props => {
     isDayBlocked = () => false,
     isBlockedBetween = () => false,
     isBufferDay = () => false,
+    singleDaySelect = false,
     hasFocusOnMount = true,
   } = props;
 
@@ -398,6 +399,12 @@ const DatePicker = props => {
 
     // Date range:
     if (range) {
+      // Single day select: one click selects both start and end
+      if (singleDaySelect) {
+        onCurrentValueChange([date, date]);
+        return;
+      }
+
       const newValue =
         currentValue?.[0] == null || hasStartAndEnd(currentValue)
           ? [date]

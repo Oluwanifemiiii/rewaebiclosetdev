@@ -379,24 +379,14 @@ const calculateLineItems = (
   const priceVariantMaybe = priceVariantName ? { priceVariantName } : {};
   const seatCount = seats ? parseInt(seats, 10) : 1;
 
-  // Apply buffer: the customer pays for the full 5 days (2 before + 1 selected + 2 after)
-  let orderData;
-  if (startDate && endDate) {
-    const { bufferedStart, bufferedEnd } = addDayBuffer(startDate, endDate);
-    orderData = {
-      bookingStart: bufferedStart,
-      bookingEnd: bufferedEnd,
-      ...priceVariantMaybe,
-      ...(seatsEnabled && { seats: seatCount }),
-    };
-  } else {
-    orderData = {
-      bookingStart: startDate,
-      bookingEnd: endDate,
-      ...priceVariantMaybe,
-      ...(seatsEnabled && { seats: seatCount }),
-    };
-  }
+  // Send the original single-day dates for pricing.
+  // The customer pays for 1 day only — buffer days are not charged.
+  const orderData = {
+    bookingStart: startDate,
+    bookingEnd: endDate,
+    ...priceVariantMaybe,
+    ...(seatsEnabled && { seats: seatCount }),
+  };
 
   if (startDate && endDate && !fetchLineItemsInProgress) {
     onFetchTransactionLineItems({
@@ -767,16 +757,24 @@ export const BookingDatesForm = props => {
               endDatePlaceholderText={endDatePlaceholderText}
               format={v => {
                 const { startDate, endDate } = v || {};
-                // Format the Final Form field's value for the DateRangePicker
-                // DateRangePicker operates on local time zone, but the form uses listing's time zone
-                const formattedStart = startDate
-                  ? timeOfDayFromTimeZoneToLocal(startDate, timeZone)
+                // Show buffered dates in the input fields:
+                // startDate input shows 2 days before, endDate input shows 2 days after
+                const bufferedStart = startDate
+                  ? subtractTime(startDate, BUFFER_DAYS, 'days', timeZone)
                   : startDate;
-                const endDateForPicker =
-                  isDaily && endDate ? getInclusiveEndDate(endDate, timeZone) : endDate;
-                const formattedEnd = endDateForPicker
-                  ? timeOfDayFromTimeZoneToLocal(endDateForPicker, timeZone)
-                  : endDateForPicker;
+                const bufferedEndExclusive = endDate
+                  ? addTime(endDate, BUFFER_DAYS, 'days', timeZone)
+                  : endDate;
+                const bufferedEndInclusive = bufferedEndExclusive && isDaily
+                  ? getInclusiveEndDate(bufferedEndExclusive, timeZone)
+                  : bufferedEndExclusive;
+
+                const formattedStart = bufferedStart
+                  ? timeOfDayFromTimeZoneToLocal(bufferedStart, timeZone)
+                  : bufferedStart;
+                const formattedEnd = bufferedEndInclusive
+                  ? timeOfDayFromTimeZoneToLocal(bufferedEndInclusive, timeZone)
+                  : bufferedEndInclusive;
                 return v ? { startDate: formattedStart, endDate: formattedEnd } : v;
               }}
               parse={v => {
@@ -784,6 +782,9 @@ export const BookingDatesForm = props => {
                 return v ? getStartAndEndOnTimeZone(startDate, endDate, isDaily, timeZone) : v;
               }}
               useMobileMargins
+              singleDaySelect
+              startDateOffset={day => day ? subtractTime(day, BUFFER_DAYS, 'days') : null}
+              endDateOffset={day => day ? addTime(day, BUFFER_DAYS, 'days') : null}
               validate={composeValidators(
                 required(
                   intl.formatMessage({

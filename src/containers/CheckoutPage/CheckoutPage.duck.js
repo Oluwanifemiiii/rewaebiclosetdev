@@ -21,7 +21,18 @@ const initiateOrderPayloadCreator = (
 
   const { deliveryMethod, deliveryFeeInSubunits, deliveryAddress, customerAddress, paymentGateway, quantity, bookingDates, ...otherOrderParams } = orderParams;
   const quantityMaybe = quantity ? { stockReservationQuantity: quantity } : {};
-  const bookingParamsMaybe = bookingDates || {};
+
+  // For buffered bookings: bookingDates contains buffered start/end (5 days)
+  // plus displayStart/displayEnd (original 1 day) for pricing.
+  let bookingParamsMaybe = bookingDates || {};
+  if (bookingDates && bookingDates.displayStart && bookingDates.displayEnd) {
+    bookingParamsMaybe = {
+      bookingStart: bookingDates.bookingStart,
+      bookingEnd: bookingDates.bookingEnd,
+      bookingDisplayStart: bookingDates.displayStart,
+      bookingDisplayEnd: bookingDates.displayEnd,
+    };
+  }
 
   // Parameters only for client app's server
   const orderData = {
@@ -305,7 +316,17 @@ const speculateTransactionPayloadCreator = (
     ...otherOrderParams
   } = orderParams;
   const quantityMaybe = quantity ? { stockReservationQuantity: quantity } : {};
-  const bookingParamsMaybe = bookingDates || {};
+
+  // For buffered bookings: use display dates for pricing (1 day)
+  let bookingParamsMaybe = bookingDates || {};
+  if (bookingDates && bookingDates.displayStart && bookingDates.displayEnd) {
+    bookingParamsMaybe = {
+      bookingStart: bookingDates.bookingStart,
+      bookingEnd: bookingDates.bookingEnd,
+      bookingDisplayStart: bookingDates.displayStart,
+      bookingDisplayEnd: bookingDates.displayEnd,
+    };
+  }
 
   // Parameters only for client app's server (passed as orderData to lineItems.js)
   const orderData = {

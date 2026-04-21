@@ -1,5 +1,7 @@
 const axios = require('axios');
 const { getSdk } = require('../../api-util/sdk');
+const sharetribeSdk = require('sharetribe-flex-sdk');
+const { UUID } = sharetribeSdk.types;
 
 module.exports = async (req, res) => {
   try {
@@ -36,7 +38,7 @@ module.exports = async (req, res) => {
     
     // Transition to offer-accepted
     const transitionResponse = await sdk.transactions.transition({
-      id: transactionId,
+      id: new UUID(transactionId),
       transition: "transition/confirm-payment-paystack",
       params: {
         protectedData: {
@@ -58,7 +60,7 @@ module.exports = async (req, res) => {
 
     // ✅ Fetch the complete updated transaction
     const fullTransaction = await sdk.transactions.show({
-      id: transactionId,
+      id: new UUID(transactionId),
       include: [
         'customer',
         'customer.profileImage',

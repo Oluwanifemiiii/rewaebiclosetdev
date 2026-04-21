@@ -68,10 +68,14 @@ const LineItemBasePriceMaybe = props => {
   );
 
   return quantity && total ? (
+    // For daily bookings (rentals), hide the "price x quantity" line
+    // since the customer pays a flat rental fee regardless of buffer days.
+    isDaily ? null : (
     <div className={css.lineItem}>
       <span className={css.itemLabel}>{message}</span>
       <span className={css.itemValue}>{total}</span>
     </div>
+    )
   ) : null;
 };
 

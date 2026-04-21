@@ -1,4 +1,5 @@
 const integrationSdk = require('sharetribe-flex-integration-sdk');
+const { UUID } = integrationSdk.types;
 
 const INTEGRATION_CLIENT_ID = process.env.SHARETRIBE_INTEGRATION_CLIENT_ID;
 const INTEGRATION_CLIENT_SECRET = process.env.SHARETRIBE_INTEGRATION_CLIENT_SECRET;
@@ -27,7 +28,7 @@ module.exports = async (req, res) => {
     });
 
     await sdk.transactions.updateMetadata({
-      id: transactionId,
+      id: new UUID(transactionId),
       metadata: {
         deliveryAddress: deliveryAddress || null,
         deliveryFeeInSubunits: deliveryFeeInSubunits || null,

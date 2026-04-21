@@ -199,8 +199,9 @@
 
 .dateOffset {
   & .renderedDay {
-    background-color: var(--datepickerHoveredBgColor);
-    color: var(--datepickerHoveredFgColor);
+    background-color: var(--datepickerSelectedBgColor);
+    opacity: 0.4;
+    color: var(--datepickerSelectedFgColor);
   }
 }
 

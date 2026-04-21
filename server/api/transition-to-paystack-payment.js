@@ -1,5 +1,7 @@
 const { getSdk } = require('../api-util/sdk');
 const { handleError } = require('../api-util/sdk');
+const sharetribeSdk = require('sharetribe-flex-sdk');
+const { UUID } = sharetribeSdk.types;
 
 module.exports = async (req, res) => {
   try {
@@ -20,7 +22,7 @@ module.exports = async (req, res) => {
     const sdk = getSdk(req, res);
 
     // ✅ First, get the transaction to check its current state
-    const txResponse = await sdk.transactions.show({ id: transactionId });
+    const txResponse = await sdk.transactions.show({ id: new UUID(transactionId) });
     const transaction = txResponse.data.data;
     
     console.log('Current transaction state:', transaction.attributes.lastTransition);
@@ -28,7 +30,7 @@ module.exports = async (req, res) => {
 
     // Transition from offer-pending to pending-payment-paystack
     const response = await sdk.transactions.transition({
-      id: transactionId,
+      id: new UUID(transactionId),
       transition: 'transition/request-payment-paystack',
       params: {
         protectedData: {

@@ -15,7 +15,7 @@ const DeliveryAddressForm = props => {
   const { listing, onFeeCalculated, currency = 'NGN', disabled = false, className, skipFeeCalculation = false } = props;
   const debounceRef = useRef(null);
 
-  const [address, setAddress] = useState({ street: '', city: '', state: '', country: 'Nigeria', phone: '' });
+  const [address, setAddress] = useState({ street: '', city: '', state: '', country: '', phone: '' });
   const [calculatingFee, setCalculatingFee] = useState(false);
   const [deliveryFee, setDeliveryFee] = useState(null);
   const [distanceKm, setDistanceKm] = useState(null);
@@ -157,7 +157,7 @@ const DeliveryAddressForm = props => {
           id="deliveryStreet"
           type="text"
           className={css.input}
-          placeholder="e.g. 12 Allen Avenue"
+          placeholder="e.g. 123 Your Street"
           disabled={disabled}
           value={address.street}
           onChange={e => handleFieldChange('street', e.target.value)}
@@ -171,7 +171,7 @@ const DeliveryAddressForm = props => {
             id="deliveryCity"
             type="text"
             className={css.input}
-            placeholder="e.g. Lagos"
+            placeholder="e.g. Dallas"
             disabled={disabled}
             value={address.city}
             onChange={e => handleFieldChange('city', e.target.value)}
@@ -183,7 +183,7 @@ const DeliveryAddressForm = props => {
             id="deliveryState"
             type="text"
             className={css.input}
-            placeholder="e.g. Lagos State"
+            placeholder="e.g. Texas"
             disabled={disabled}
             value={address.state}
             onChange={e => handleFieldChange('state', e.target.value)}
@@ -197,7 +197,7 @@ const DeliveryAddressForm = props => {
           id="deliveryCountry"
           type="text"
           className={css.input}
-          placeholder="e.g. Nigeria"
+          placeholder="e.g. United States"
           disabled={disabled}
           value={address.country}
           onChange={e => handleFieldChange('country', e.target.value)}

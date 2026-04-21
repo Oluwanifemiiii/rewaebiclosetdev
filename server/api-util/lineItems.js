@@ -193,10 +193,14 @@ const getHourQuantityAndLineItems = orderData => {
 };
 
 const getDateRangeQuantityAndLineItems = (orderData, code) => {
-  const { bookingStart, bookingEnd, seats } = orderData;
+  const { bookingStart, bookingEnd, bookingDisplayStart, bookingDisplayEnd, seats } = orderData;
   const hasSeats = !!seats;
+  // Use display dates (original 1-day selection) for pricing if available,
+  // so the customer is charged for 1 day, not the full buffered range.
+  const pricingStart = bookingDisplayStart || bookingStart;
+  const pricingEnd = bookingDisplayEnd || bookingEnd;
   const units =
-    bookingStart && bookingEnd ? calculateQuantityFromDates(bookingStart, bookingEnd, code) : null;
+    pricingStart && pricingEnd ? calculateQuantityFromDates(pricingStart, pricingEnd, code) : null;
   return hasSeats ? { units, seats, extraLineItems: [] } : { quantity: units, extraLineItems: [] };
 };
 
