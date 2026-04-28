@@ -69,6 +69,7 @@ router.post('/transition-to-paystack-payment', require('./api/transition-to-pays
 // they want to continue with the data fetched from IdP (e.g. name and email)
 router.post('/auth/create-user-with-idp', createUserWithIdp);
 router.post('/calculate-shipping', require('./api/calculate-shipping'));
+router.post('/paystack/verify', require('./api/paystack/verify'));
 // Facebook authentication endpoints
 
 // This endpoint is called when user wants to initiate authenticaiton with Facebook
