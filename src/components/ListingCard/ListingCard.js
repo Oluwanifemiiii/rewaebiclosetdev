@@ -28,20 +28,9 @@ import css from './ListingCard.module.css';
 const MIN_LENGTH_FOR_LONG_WORDS = 10;
 
 const priceData = (price, currency, intl) => {
-  if (price && price.currency === currency) {
+  if (price) {
     const formattedPrice = formatMoney(intl, price);
     return { formattedPrice, priceTitle: formattedPrice };
-  } else if (price) {
-    return {
-      formattedPrice: intl.formatMessage(
-        { id: 'ListingCard.unsupportedPrice' },
-        { currency: price.currency }
-      ),
-      priceTitle: intl.formatMessage(
-        { id: 'ListingCard.unsupportedPriceTitle' },
-        { currency: price.currency }
-      ),
-    };
   }
   return {};
 };

@@ -53,20 +53,9 @@ const MAX_LENGTH_FOR_WORDS_IN_TITLE = 7;
 const MOBILE_MAX_WIDTH = 550;
 
 const priceData = (price, currency, intl) => {
-  if (price?.currency === currency) {
+  if (price) {
     const formattedPrice = formatMoney(intl, price);
     return { formattedPrice, priceTitle: formattedPrice };
-  } else if (price) {
-    return {
-      formattedPrice: intl.formatMessage(
-        { id: 'ManageListingCard.unsupportedPrice' },
-        { currency: price.currency }
-      ),
-      priceTitle: intl.formatMessage(
-        { id: 'ManageListingCard.unsupportedPriceTitle' },
-        { currency: price.currency }
-      ),
-    };
   }
   return {};
 };

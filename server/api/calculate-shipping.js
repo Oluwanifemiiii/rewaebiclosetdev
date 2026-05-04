@@ -1,6 +1,8 @@
 // server/api/calculate-shipping.js
 //
 // Calculates delivery fee using Google Distance Matrix API.
+// Falls back to straight-line (Haversine) distance when no driving route exists
+// (e.g. cross-continent orders like Nigeria ↔ USA).
 //
 // Env var required: GOOGLE_MAPS_API_KEY
 //
@@ -18,6 +20,48 @@ const axios = require('axios');
 const GOOGLE_KEY =
   process.env.GOOGLE_MAPS_API_KEY ||
   process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
+
+// ── Haversine formula ─────────────────────────────────────────────────────
+// Returns straight-line distance in km between two lat/lng points.
+// Used as fallback when no driving route exists (cross-continent, islands, etc.)
+const haversineDistanceKm = (lat1, lng1, lat2, lng2) => {
+  const toRad = deg => (deg * Math.PI) / 180;
+  const R = 6371; // Earth's radius in km
+
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
+// ── Google Geocoding ──────────────────────────────────────────────────────
+// Converts a text address to { lat, lng } using Google Geocoding API.
+// Needed for Haversine fallback when we only have text addresses.
+const geocodeWithGoogle = async (addressText) => {
+  console.log('🌍 [geocode] Google Geocoding:', addressText);
+
+  const response = await axios.get(
+    'https://maps.googleapis.com/maps/api/geocode/json',
+    {
+      params: { address: addressText, key: GOOGLE_KEY },
+      timeout: 8000,
+    }
+  );
+
+  if (response.data.status !== 'OK' || !response.data.results?.length) {
+    throw new Error(`Could not geocode address: "${addressText}" (${response.data.status})`);
+  }
+
+  const location = response.data.results[0].geometry.location;
+  console.log('🌍 [geocode] Result:', response.data.results[0].formatted_address, '→', location.lat, location.lng);
+  return { lat: location.lat, lng: location.lng };
+};
 
 module.exports = async (req, res) => {
   try {
@@ -57,7 +101,6 @@ module.exports = async (req, res) => {
     }
 
     // ── Build origin string ───────────────────────────────────────────────
-    // Prefer lat/lng for the seller — no geocoding step needed, more accurate
     let origin;
     if (originGeolocation?.lat && originGeolocation?.lng) {
       origin = `${originGeolocation.lat},${originGeolocation.lng}`;
@@ -68,7 +111,6 @@ module.exports = async (req, res) => {
     }
 
     // ── Build destination string ──────────────────────────────────────────
-    // Prefer lat/lng if buyer used autocomplete
     let destination;
     if (destinationAddress.lat && destinationAddress.lng) {
       destination = `${destinationAddress.lat},${destinationAddress.lng}`;
@@ -127,38 +169,90 @@ module.exports = async (req, res) => {
     const element = apiData.rows?.[0]?.elements?.[0];
     console.log('📡 Element status:', element?.status);
 
-    if (!element || element.status !== 'OK') {
-      return res.status(400).json({
-        success: false,
-        message: `Could not find a driving route between the two locations (${element?.status || 'UNKNOWN'})`,
+    // ── Driving route found — use exact road distance ─────────────────────
+    if (element && element.status === 'OK') {
+      const distanceMeters = element.distance.value;
+      const distanceKm = distanceMeters / 1000;
+      console.log('📍 Driving distance:', distanceKm.toFixed(2), 'km');
+      console.log('📍 Duration:', element.duration.text);
+
+      let shippingFee = Math.round(distanceKm * ratePerKm);
+      console.log('💰 Raw fee:', shippingFee, 'subunits (before minimum)');
+
+      if (minimumFee && shippingFee < minimumFee) {
+        console.log('💰 Applying minimum fee:', minimumFee, '(was:', shippingFee + ')');
+        shippingFee = minimumFee;
+      }
+
+      console.log('✅ Final fee (driving):', shippingFee, 'subunits = ₦' + shippingFee / 100);
+      console.log('===================================================');
+
+      return res.json({
+        success: true,
+        shippingFee,
+        distance: distanceKm,
+        distanceType: 'driving',
+        duration: element.duration.text,
+        originAddress: apiData.origin_addresses[0],
+        destinationAddress: apiData.destination_addresses[0],
       });
     }
 
-    const distanceMeters = element.distance.value;
-    const distanceKm = distanceMeters / 1000;
-    console.log('📍 Distance:', distanceKm.toFixed(2), 'km');
-    console.log('📍 Duration:', element.duration.text);
+    // ── No driving route (ZERO_RESULTS) — fall back to air distance ──────
+    console.log('⚠️  No driving route found (status:', element?.status + '). Falling back to air distance...');
 
-    // ── Calculate fee ─────────────────────────────────────────────────────
-    // ratePerKm is in currency subunits (kobo for NGN)
-    let shippingFee = Math.round(distanceKm * ratePerKm);
-    console.log('💰 Raw fee:', shippingFee, 'subunits (before minimum)');
+    // Resolve origin coordinates
+    let originLat, originLng;
+    if (originGeolocation?.lat && originGeolocation?.lng) {
+      originLat = originGeolocation.lat;
+      originLng = originGeolocation.lng;
+    } else {
+      const originText = originAddress || originDressLocation;
+      const geocoded = await geocodeWithGoogle(originText);
+      originLat = geocoded.lat;
+      originLng = geocoded.lng;
+    }
+
+    // Resolve destination coordinates
+    let destLat, destLng;
+    if (destinationAddress.lat && destinationAddress.lng) {
+      destLat = destinationAddress.lat;
+      destLng = destinationAddress.lng;
+    } else {
+      const destText = destinationAddress.address ||
+        [destinationAddress.street, destinationAddress.city, destinationAddress.state, destinationAddress.country]
+          .filter(Boolean)
+          .join(', ');
+      const geocoded = await geocodeWithGoogle(destText);
+      destLat = geocoded.lat;
+      destLng = geocoded.lng;
+    }
+
+    const airDistanceKm = haversineDistanceKm(originLat, originLng, destLat, destLng);
+    console.log('✈️  Air distance:', airDistanceKm.toFixed(2), 'km');
+
+    let shippingFee = Math.round(airDistanceKm * ratePerKm);
+    console.log('💰 Raw fee (air):', shippingFee, 'subunits (before minimum)');
 
     if (minimumFee && shippingFee < minimumFee) {
       console.log('💰 Applying minimum fee:', minimumFee, '(was:', shippingFee + ')');
       shippingFee = minimumFee;
     }
 
-    console.log('✅ Final fee:', shippingFee, 'subunits = ₦' + shippingFee / 100);
+    console.log('✅ Final fee (air distance):', shippingFee, 'subunits = ₦' + shippingFee / 100);
     console.log('===================================================');
 
     return res.json({
       success: true,
       shippingFee,
-      distance: distanceKm,
-      duration: element.duration.text,
-      originAddress: apiData.origin_addresses[0],
-      destinationAddress: apiData.destination_addresses[0],
+      distance: airDistanceKm,
+      distanceType: 'air',
+      originAddress: apiData.origin_addresses?.[0] || (originAddress || originDressLocation),
+      destinationAddress: apiData.destination_addresses?.[0] ||
+        (destinationAddress.address ||
+          [destinationAddress.street, destinationAddress.city, destinationAddress.state, destinationAddress.country]
+            .filter(Boolean)
+            .join(', ')),
     });
   } catch (error) {
     console.error('❌ [calculate-shipping] Error:', error.message);

@@ -128,7 +128,15 @@ const EditListingPricingPanel = props => {
     marketplaceCurrency
   );
 
-  const priceCurrencyValid = !isCompatibleCurrency
+  // Manual sellers use NGN regardless of marketplace currency (USD)
+  const sellerType = listing?.author?.attributes?.profile?.publicData?.sellerType;
+  const isManualSeller = sellerType === 'manual';
+  const listingCurrency = initialValues.price?.currency;
+  const effectiveCurrency = isManualSeller ? (listingCurrency || 'NGN') : marketplaceCurrency;
+
+  const priceCurrencyValid = isManualSeller
+    ? true
+    : !isCompatibleCurrency
     ? false
     : marketplaceCurrency && initialValues.price instanceof Money
     ? initialValues.price.currency === marketplaceCurrency

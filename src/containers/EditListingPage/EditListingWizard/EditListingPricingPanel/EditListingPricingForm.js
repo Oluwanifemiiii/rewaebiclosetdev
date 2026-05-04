@@ -186,9 +186,7 @@ export const EditListingPricingForm = props => {
                 { id: 'EditListingPricingForm.pricePerProduct' },
                 { unitType }
               )}
-              placeholder={intl.formatMessage({
-                id: 'EditListingPricingForm.priceInputPlaceholder',
-              })}
+              placeholder={`Add a price in ${isManualSeller ? 'NGN' : 'USD'}...`}
               currencyConfig={appSettings.getCurrencyFormatting(displayCurrency)} // ✅ Use displayCurrency
               validate={priceValidators}
             />

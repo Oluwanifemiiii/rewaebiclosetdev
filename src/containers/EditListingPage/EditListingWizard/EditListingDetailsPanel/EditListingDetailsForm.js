@@ -352,13 +352,18 @@ const EditListingDetailsForm = props => (
       // - If creating a new listing, fall back to the default marketplace currency.
       const currencyToCheck = listingCurrency || marketplaceCurrency;
 
+      // Manual sellers use NGN — always treat as compatible
+      const isManualSellerListing = listingCurrency === 'NGN';
+
       // Verify if the selected listing type's transaction process supports the chosen currency.
       // This checks compatibility between the transaction process
       // and the marketplace or listing currency.
-      const isCompatibleCurrency = isValidCurrencyForTransactionProcess(
-        transactionProcessAlias,
-        currencyToCheck
-      );
+      const isCompatibleCurrency = isManualSellerListing
+        ? true
+        : isValidCurrencyForTransactionProcess(
+            transactionProcessAlias,
+            currencyToCheck
+          );
 
       const maxLength60Message = maxLength(maxLengthMessage, TITLE_MAX_LENGTH);
 

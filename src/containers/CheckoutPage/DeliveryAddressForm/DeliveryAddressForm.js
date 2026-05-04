@@ -35,8 +35,8 @@ const DeliveryAddressForm = props => {
   const sellerType = author?.attributes?.profile?.publicData?.sellerType;
   const isManualSeller = sellerType === 'manual';
 
-  const defaultRatePerKm = isManualSeller ? 30000 : 100;      // 30000 kobo/km (₦300/km) or 100 cents/km ($1/km)
-  const defaultMinimumFee = isManualSeller ? 300000 : 400;   // ₦3,000 or $4
+  const defaultRatePerKm = isManualSeller ? 10000 : 5;        // 10000 kobo/km (₦100/km) or 5 cents/km ($0.05/km)
+  const defaultMinimumFee = isManualSeller ? 150000 : 300;     // ₦1,500 or $3
 
   const shippingRatePerKm = listing?.attributes?.publicData?.shippingRatePerKm || defaultRatePerKm;
   const minimumShippingFee = listing?.attributes?.publicData?.minimumShippingFee || defaultMinimumFee;
