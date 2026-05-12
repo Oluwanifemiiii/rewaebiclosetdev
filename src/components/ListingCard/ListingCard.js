@@ -1,4 +1,5 @@
 import React from 'react';
+import { useSelector, useDispatch } from 'react-redux';
 import classNames from 'classnames';
 
 import { useConfiguration } from '../../context/configurationContext';
@@ -16,6 +17,8 @@ import { richText } from '../../util/richText';
 import { createSlug } from '../../util/urlHelpers';
 import { isBookingProcessAlias } from '../../transactions/transaction';
 
+import { toggleWishlistItem, isListingWishlisted } from '../../ducks/wishlist.duck';
+
 import {
   AspectRatioWrapper,
   NamedLink,
@@ -28,9 +31,20 @@ import css from './ListingCard.module.css';
 const MIN_LENGTH_FOR_LONG_WORDS = 10;
 
 const priceData = (price, currency, intl) => {
-  if (price) {
+  if (price && price.currency === currency) {
     const formattedPrice = formatMoney(intl, price);
     return { formattedPrice, priceTitle: formattedPrice };
+  } else if (price) {
+    return {
+      formattedPrice: intl.formatMessage(
+        { id: 'ListingCard.unsupportedPrice' },
+        { currency: price.currency }
+      ),
+      priceTitle: intl.formatMessage(
+        { id: 'ListingCard.unsupportedPriceTitle' },
+        { currency: price.currency }
+      ),
+    };
   }
   return {};
 };
@@ -70,6 +84,56 @@ const PriceMaybe = props => {
         <FormattedMessage id="ListingCard.price" values={{ priceValue, pricePerUnit }} />
       )}
     </div>
+  );
+};
+
+/**
+ * WishlistButton
+ * Heart icon overlay for toggling a listing in the user's wishlist.
+ * Uses Redux directly via hooks so it works without prop-drilling.
+ * @component
+ */
+const WishlistButton = ({ listingId }) => {
+  const dispatch = useDispatch();
+  const isAuthenticated = useSelector(state => state.auth.isAuthenticated);
+  const isWishlisted = useSelector(state => isListingWishlisted(state, listingId));
+  const toggleInProgress = useSelector(state => state.wishlist.toggleInProgress);
+
+  if (!isAuthenticated) {
+    return null;
+  }
+
+  const handleWishlistClick = e => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!toggleInProgress) {
+      dispatch(toggleWishlistItem(listingId));
+    }
+  };
+
+  return (
+    <button
+      className={classNames(css.wishlistButton, {
+        [css.wishlistButtonActive]: isWishlisted,
+      })}
+      onClick={handleWishlistClick}
+      type="button"
+      aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
+    >
+      <svg
+        className={css.heartIcon}
+        viewBox="0 0 24 24"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
+          fill={isWishlisted ? '#ef4444' : 'none'}
+          stroke={isWishlisted ? '#ef4444' : '#ffffff'}
+          strokeWidth="2"
+        />
+      </svg>
+    </button>
   );
 };
 
@@ -220,6 +284,9 @@ export const ListingCard = props => {
             <FormattedMessage id="ListingCard.closed" />
           </div>
         )}
+
+        {/* Wishlist heart button */}
+        <WishlistButton listingId={id} />
         
         <ListingCardImage
           renderSizes={renderSizes}

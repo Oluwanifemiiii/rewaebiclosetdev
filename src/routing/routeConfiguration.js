@@ -38,6 +38,7 @@ const SearchPageWithGrid = loadable(() => import(/* webpackChunkName: "SearchPag
 const StripePayoutPage = loadable(() => import(/* webpackChunkName: "StripePayoutPage" */ '../containers/StripePayoutPage/StripePayoutPage'));
 const TermsOfServicePage = loadable(() => import(/* webpackChunkName: "TermsOfServicePage" */ '../containers/TermsOfServicePage/TermsOfServicePage'));
 const TransactionPage = loadable(() => import(/* webpackChunkName: "TransactionPage" */ '../containers/TransactionPage/TransactionPage'));
+const WishlistPage = loadable(() => import(/* webpackChunkName: "WishlistPage" */ '../containers/WishlistPage/WishlistPage'));
 const NoAccessPage = loadable(() => import(/* webpackChunkName: "NoAccessPage" */ '../containers/NoAccessPage/NoAccessPage'));
 
 // Styleguide helps you to review current components and develop new ones
@@ -304,6 +305,14 @@ const routeConfiguration = (layoutConfig, accessControlConfig) => {
       authPage: 'LoginPage',
       component: ManageListingsPage,
       loadData: pageDataLoadingAPI.ManageListingsPage.loadData,
+    },
+    {
+      path: '/wishlist',
+      name: 'WishlistPage',
+      auth: true,
+      authPage: 'LoginPage',
+      component: WishlistPage,
+      loadData: pageDataLoadingAPI.WishlistPage.loadData,
     },
     {
       path: '/account',

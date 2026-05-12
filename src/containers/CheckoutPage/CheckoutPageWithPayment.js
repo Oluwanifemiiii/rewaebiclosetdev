@@ -1377,41 +1377,57 @@ if (!isStripeCompatibleCurrency && !isManualSeller) {
 
                   {/* Show Paystack for manual sellers OR when explicitly selected */}
                   {(isManualSeller || isPaystack) && showPaymentForm ? (
-                    <button
-                      style={{
-                        backgroundColor: (paystackProcessing || deliveryAddressNotReady) ? '#6b7280' : '#059669',
-                        color: 'white',
-                        padding: '12px 20px',
-                        fontSize: '16px',
-                        fontWeight: 600,
-                        border: 'none',
-                        borderRadius: '8px',
-                        cursor: (paystackProcessing || deliveryAddressNotReady) ? 'not-allowed' : 'pointer',
-                        width: '100%',
-                        marginTop: isManualSeller ? '0' : '16px', // No margin if it's the only option
-                        transition: '0.25s',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '8px',
-                        opacity: deliveryAddressNotReady ? 0.6 : 1,
-                      }}
-                      onMouseOver={e =>
-                        !(paystackProcessing || deliveryAddressNotReady) && (e.target.style.backgroundColor = '#047857')
-                      }
-                      onMouseOut={e =>
-                        !(paystackProcessing || deliveryAddressNotReady) && (e.target.style.backgroundColor = '#059669')
-                      }
-                      onClick={handlePaystackPayment}
-                      disabled={paystackProcessing || deliveryAddressNotReady}
-                    >
-                      {paystackProcessing && <IconSpinner />}
-                      {paystackProcessing
-                        ? 'Processing payment...'
-                        : deliveryAddressNotReady
-                        ? 'Enter delivery address to continue'
-                        : 'Pay with Paystack'}
-                    </button>
+                    <>
+                      <button
+                        style={{
+                          backgroundColor: (paystackProcessing || deliveryAddressNotReady) ? '#6b7280' : '#059669',
+                          color: 'white',
+                          padding: '12px 20px',
+                          fontSize: '16px',
+                          fontWeight: 600,
+                          border: 'none',
+                          borderRadius: '8px',
+                          cursor: (paystackProcessing || deliveryAddressNotReady) ? 'not-allowed' : 'pointer',
+                          width: '100%',
+                          marginTop: isManualSeller ? '0' : '16px', // No margin if it's the only option
+                          transition: '0.25s',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '8px',
+                          opacity: deliveryAddressNotReady ? 0.6 : 1,
+                        }}
+                        onMouseOver={e =>
+                          !(paystackProcessing || deliveryAddressNotReady) && (e.target.style.backgroundColor = '#047857')
+                        }
+                        onMouseOut={e =>
+                          !(paystackProcessing || deliveryAddressNotReady) && (e.target.style.backgroundColor = '#059669')
+                        }
+                        onClick={handlePaystackPayment}
+                        disabled={paystackProcessing || deliveryAddressNotReady}
+                      >
+                        {paystackProcessing && <IconSpinner />}
+                        {paystackProcessing
+                          ? 'Processing payment...'
+                          : deliveryAddressNotReady
+                          ? 'Enter delivery address to continue'
+                          : 'Pay with Paystack'}
+                      </button>
+                      <p
+                        style={{
+                          fontSize: '12px',
+                          color: '#b45309',
+                          backgroundColor: '#fffbeb',
+                          border: '1px solid #fde68a',
+                          borderRadius: '6px',
+                          padding: '10px 12px',
+                          marginTop: '12px',
+                          lineHeight: '1.5',
+                        }}
+                      >
+                        ⚠️ International VISA cards do not work with Paystack. If a transaction is to be done with an international card, it is advisable to use a Mastercard.
+                      </p>
+                    </>
                   ) : null}
                 </>
               );

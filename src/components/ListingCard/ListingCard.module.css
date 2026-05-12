@@ -142,3 +142,39 @@
   text-transform: uppercase;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
+
+.wishlistButton {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+  background: rgba(0, 0, 0, 0.3);
+  border: none;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+  padding: 0;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.5);
+    transform: scale(1.1);
+  }
+}
+
+.wishlistButtonActive {
+  background: rgba(255, 255, 255, 0.9);
+
+  &:hover {
+    background: rgba(255, 255, 255, 1);
+  }
+}
+
+.heartIcon {
+  width: 20px;
+  height: 20px;
+}

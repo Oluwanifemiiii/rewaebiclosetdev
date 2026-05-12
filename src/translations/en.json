@@ -641,6 +641,8 @@
   "ListingPage.reviewsTitle": "Reviews ({count})",
   "ListingPage.schemaTitle": "{title} | {marketplaceName}",
   "ListingPage.viewImagesButton": "View photos ({count})",
+  "ListingPage.addToWishlist": "Save to wishlist",
+  "ListingPage.wishlisted": "Saved to wishlist",
   "LoadableComponentErrorBoundaryPage.description": "It looks like the app needs to be updated! Please refresh the page or go back to {link}.",
   "LoadableComponentErrorBoundaryPage.heading": "Oops, we couldn't fetch the page.",
   "LoadableComponentErrorBoundaryPage.landingPageLink": "landing page",
@@ -1255,6 +1257,7 @@
   "TopbarDesktop.screenreader.topbarNavigation": "Top bar navigation",
   "TopbarDesktop.signup": "Sign up",
   "TopbarDesktop.yourListingsLink": "Your listings",
+  "TopbarDesktop.wishlistLink": "Wishlist",
   "TopbarMobileMenu.accountSettingsLink": "Account settings",
   "TopbarMobileMenu.greeting": "Hello {displayName}",
   "TopbarMobileMenu.inboxLink": "Inbox",
@@ -1266,6 +1269,7 @@
   "TopbarMobileMenu.signupOrLogin": "{signup} or {login}",
   "TopbarMobileMenu.unauthorizedGreeting": "Hello there,{lineBreak}would you like to {signupOrLogin}?",
   "TopbarMobileMenu.yourListingsLink": "Your listings",
+  "TopbarMobileMenu.wishlistLink": "Wishlist",
   "TopbarSearchForm.placeholder": "Search listings…",
   "TopbarSimplified.goToLandingPage": "Go to the homepage",
   "TransactionPage.ActivityFeed.default-booking.accepted": "{actor, select, you {You accepted the booking request.} operator {The booking request was accepted.} other {{otherUsersName} accepted the booking request.}}",
@@ -1541,5 +1545,10 @@
   "UserNav.accountSettings": "Account settings",
   "UserNav.profileSettings": "Profile settings",
   "UserNav.screenreader.userNav": "User profile navigation",
-  "UserNav.yourListings": "Your listings"
+  "UserNav.yourListings": "Your listings",
+  "WishlistPage.title": "Wishlist | {marketplaceName}",
+  "WishlistPage.heading": "Your wishlist",
+  "WishlistPage.noListings": "You haven't saved any listings yet. Browse listings and tap the heart to save them here.",
+  "WishlistPage.fetchError": "Something went wrong loading your wishlist. Please try again.",
+  "WishlistPage.loading": "Loading your wishlist..."
 }

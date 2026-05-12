@@ -1,0 +1,64 @@
+@import '../../styles/customMediaQueries.css';
+
+.root {
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: var(--zIndexTopbar);
+}
+
+.title {
+  composes: marketplaceH1FontStyles from global;
+  margin: 24px 24px 0 24px;
+
+  @media (--viewportMedium) {
+    margin: 24px 24px 0 24px;
+  }
+  @media (--viewportLarge) {
+    margin: 32px 36px 0 36px;
+  }
+}
+
+.listingCards {
+  padding: 0 24px 96px 24px;
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: 24px;
+  margin-top: 24px;
+
+  @media (--viewportMedium) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  @media (--viewportLarge) {
+    grid-template-columns: repeat(3, 1fr);
+    padding: 0 36px 96px 36px;
+  }
+}
+
+.listingCard {
+  width: 100%;
+}
+
+.empty {
+  composes: marketplaceH3FontStyles from global;
+  color: var(--colorGrey300);
+  text-align: center;
+  padding: 96px 24px;
+}
+
+.error {
+  composes: marketplaceH4FontStyles from global;
+  color: var(--colorFail);
+  text-align: center;
+  padding: 48px 24px;
+}
+
+.loading {
+  composes: marketplaceH4FontStyles from global;
+  color: var(--colorGrey700);
+  text-align: center;
+  padding: 48px 24px;
+}

@@ -47,6 +47,7 @@ import {
 import { getMarketplaceEntities } from '../../ducks/marketplaceData.duck';
 import { manageDisableScrolling, isScrollingDisabled } from '../../ducks/ui.duck';
 import { initializeCardPaymentData } from '../../ducks/stripe.duck.js';
+import { toggleWishlistItem, isListingWishlisted } from '../../ducks/wishlist.duck';
 
 // Shared components
 import {
@@ -128,6 +129,8 @@ export const ListingPageComponent = props => {
     callSetInitialValues,
     onSendInquiry,
     onInitializeCardPaymentData,
+    onToggleWishlistItem,
+    isWishlisted,
     config,
     routeConfiguration,
     showOwnListingsOnly,
@@ -426,6 +429,33 @@ export const ListingPageComponent = props => {
                 </H3>
               )}
             </div>
+
+            {isAuthenticated && !isOwnListing ? (
+              <button
+                className={classNames(css.wishlistButton, {
+                  [css.wishlistButtonActive]: isWishlisted,
+                })}
+                onClick={() => onToggleWishlistItem(listingId)}
+                type="button"
+              >
+                <svg
+                  className={css.wishlistHeartIcon}
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
+                    fill={isWishlisted ? '#ef4444' : 'none'}
+                    stroke={isWishlisted ? '#ef4444' : 'currentColor'}
+                    strokeWidth="2"
+                  />
+                </svg>
+                <FormattedMessage
+                  id={isWishlisted ? 'ListingPage.wishlisted' : 'ListingPage.addToWishlist'}
+                />
+              </button>
+            ) : null}
+
             <SectionTextMaybe text={description} showAsIngress />
 
             <CustomListingFields
@@ -577,6 +607,11 @@ const EnhancedListingPage = props => {
     );
   }
 
+  const listingUuid = props.params?.id;
+  const isWishlisted = listingUuid
+    ? (props.wishlistListingIds || []).includes(listingUuid)
+    : false;
+
   return (
     <ListingPageComponent
       config={config}
@@ -585,6 +620,7 @@ const EnhancedListingPage = props => {
       history={history}
       location={location}
       showOwnListingsOnly={hasNoViewingRights}
+      isWishlisted={isWishlisted}
       {...props}
     />
   );
@@ -606,6 +642,7 @@ const mapStateToProps = state => {
     inquiryModalOpenForListingId,
   } = state.ListingPage;
   const { currentUser } = state.user;
+  const { wishlistListingIds } = state.wishlist;
 
   const getListing = id => {
     const ref = { id, type: 'listing' };
@@ -636,6 +673,7 @@ const mapStateToProps = state => {
     fetchLineItemsError, // for OrderPanel
     sendInquiryInProgress,
     sendInquiryError,
+    wishlistListingIds,
   };
 };
 
@@ -647,6 +685,7 @@ const mapDispatchToProps = dispatch => ({
   onFetchTransactionLineItems: params => dispatch(fetchTransactionLineItems(params)), // for OrderPanel
   onSendInquiry: (listing, message) => dispatch(sendInquiry(listing, message)),
   onInitializeCardPaymentData: () => dispatch(initializeCardPaymentData()),
+  onToggleWishlistItem: listingId => dispatch(toggleWishlistItem(listingId)),
   onFetchTimeSlots: (listingId, start, end, timeZone, options) =>
     dispatch(fetchTimeSlots(listingId, start, end, timeZone, options)), // for OrderPanel
 });

@@ -12,6 +12,7 @@ import {
 
 import { authInfo } from './auth.duck';
 import { updateStripeConnectAccount } from './stripeConnectAccount.duck';
+import { setWishlistIds } from './wishlist.duck';
 
 // ================ Helper Functions ================ //
 
@@ -235,6 +236,11 @@ const fetchCurrentUserPayloadCreator = (options, thunkAPI) => {
 
       // Make sure auth info is up to date
       dispatch(authInfo());
+
+      // Initialize wishlist IDs from user's privateData
+      const wishlistIds = currentUser?.attributes?.profile?.privateData?.wishlistListingIds;
+      dispatch(setWishlistIds(wishlistIds || []));
+
       return currentUser;
     })
     .catch(e => {
