@@ -150,7 +150,7 @@ module.exports = (req, res) => {
           ];
 
           console.log('Manual line items (with commission):', lineItems);
-          return getTrustedSdk(req);
+          return getTrustedSdk(req, res);
         });
       } else {
         // ✅ Regular Stripe flow
