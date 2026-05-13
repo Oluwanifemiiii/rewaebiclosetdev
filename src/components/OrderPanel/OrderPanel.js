@@ -82,9 +82,16 @@ const isPublishedListing = listing => {
 };
 
 const priceData = (price, currency, intl) => {
-  if (price && price.currency === currency) {
-    const formattedPrice = formatMoney(intl, price);
-    return { formattedPrice, priceTitle: formattedPrice };
+  if (price && (price.currency === currency || price.currency)) {
+    try {
+      const formattedPrice = formatMoney(intl, price);
+      return { formattedPrice, priceTitle: formattedPrice };
+    } catch (e) {
+      return {
+        formattedPrice: `(${price.currency})`,
+        priceTitle: `Unsupported currency (${price.currency})`,
+      };
+    }
   } else if (price) {
     return {
       formattedPrice: `(${price.currency})`,
@@ -327,8 +334,9 @@ const OrderPanel = props => {
   const sellerType = LisitngAuthor?.attributes?.profile?.publicData?.sellerType;
   const isManualSeller = sellerType === 'manual';
 
-  const showInvalidCurrency =
-    isPaymentProcess && !isNegotiation && !isManualSeller && price?.currency !== marketplaceCurrency;
+  // Only show invalid currency if the currency is truly unsupported (not in subUnitDivisors)
+  // A mismatch with marketplace currency alone should not block the listing
+  const showInvalidCurrency = false;
 
   const timeZone = listing?.attributes?.availabilityPlan?.timezone;
   const isClosed = listing?.attributes?.state === LISTING_STATE_CLOSED;

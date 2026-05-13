@@ -31,9 +31,16 @@ const { UUID } = sdkTypes;
  * @returns Object literal containing formattedPrice and priceTitle
  */
 export const priceData = (price, marketplaceCurrency, intl) => {
-  if (price && price.currency === marketplaceCurrency) {
-    const formattedPrice = formatMoney(intl, price);
-    return { formattedPrice, priceTitle: formattedPrice };
+  if (price && (price.currency === marketplaceCurrency || price.currency)) {
+    try {
+      const formattedPrice = formatMoney(intl, price);
+      return { formattedPrice, priceTitle: formattedPrice };
+    } catch (e) {
+      return {
+        formattedPrice: `(${price.currency})`,
+        priceTitle: `Unsupported currency (${price.currency})`,
+      };
+    }
   } else if (price) {
     return {
       formattedPrice: `(${price.currency})`,
