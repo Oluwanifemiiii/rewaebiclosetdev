@@ -1378,6 +1378,20 @@ if (!isStripeCompatibleCurrency && !isManualSeller) {
                   {/* Show Paystack for manual sellers OR when explicitly selected */}
                   {(isManualSeller || isPaystack) && showPaymentForm ? (
                     <>
+                     <p
+                        style={{
+                          fontSize: '12px',
+                          color: '#b45309',
+                          backgroundColor: '#fffbeb',
+                          border: '1px solid #fde68a',
+                          borderRadius: '6px',
+                          padding: '10px 12px',
+                          marginTop: '12px',
+                          lineHeight: '1.5',
+                        }}
+                      >
+                        ⚠️ International VISA cards do not work with Paystack. If a transaction is to be done with an international card, it is advisable to use a Mastercard.
+                      </p>
                       <button
                         style={{
                           backgroundColor: (paystackProcessing || deliveryAddressNotReady) ? '#6b7280' : '#059669',
@@ -1413,20 +1427,7 @@ if (!isStripeCompatibleCurrency && !isManualSeller) {
                           ? 'Enter delivery address to continue'
                           : 'Pay with Paystack'}
                       </button>
-                      <p
-                        style={{
-                          fontSize: '12px',
-                          color: '#b45309',
-                          backgroundColor: '#fffbeb',
-                          border: '1px solid #fde68a',
-                          borderRadius: '6px',
-                          padding: '10px 12px',
-                          marginTop: '12px',
-                          lineHeight: '1.5',
-                        }}
-                      >
-                        ⚠️ International VISA cards do not work with Paystack. If a transaction is to be done with an international card, it is advisable to use a Mastercard.
-                      </p>
+                     
                     </>
                   ) : null}
                 </>
