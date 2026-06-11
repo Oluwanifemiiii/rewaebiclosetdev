@@ -1,0 +1,302 @@
+/* src/containers/ReviewsPage/ReviewsPage.module.css */
+
+.root {
+  max-width: 1024px;
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+}
+
+/* ── Hero ──────────────────────────────────────────────────────────────────── */
+
+.hero {
+  text-align: center;
+  margin-bottom: 48px;
+}
+
+.heading {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--colorGrey900);
+  margin: 0 0 12px;
+}
+
+.subheading {
+  color: var(--colorGrey600);
+  font-size: 1rem;
+  margin: 0;
+}
+
+/* ── Tabs ──────────────────────────────────────────────────────────────────── */
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 2px solid var(--colorGrey100);
+  margin-bottom: 32px;
+  overflow-x: auto;
+  padding-bottom: 0;
+}
+
+.tab {
+  padding: 10px 20px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+  color: var(--colorGrey600);
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+  margin-bottom: -2px;
+}
+
+.tab:hover {
+  color: var(--colorGrey900);
+}
+
+.tabActive {
+  color: var(--marketplaceColor);
+  border-bottom-color: var(--marketplaceColor);
+}
+
+/* ── Review grid ───────────────────────────────────────────────────────────── */
+
+.tabContent {
+  min-height: 160px;
+}
+
+.reviewGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+
+  @media (min-width: 640px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  @media (min-width: 1024px) {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* ── Review card ───────────────────────────────────────────────────────────── */
+
+.reviewCard {
+  background: var(--colorWhite);
+  border: 1px solid var(--colorGrey100);
+  border-radius: var(--borderRadiusMedium);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.reviewCardHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--marketplaceColor);
+  color: var(--colorWhite);
+  font-size: 0.85rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.reviewerMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.reviewerName {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--colorGrey900);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roleLabel {
+  font-size: 0.75rem;
+  color: var(--marketplaceColor);
+  font-weight: 500;
+}
+
+.reviewDate {
+  font-size: 0.75rem;
+  color: var(--colorGrey400);
+}
+
+.stars {
+  display: flex;
+  gap: 1px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.starFilled {
+  color: #f59e0b;
+  font-size: 1rem;
+}
+
+.starEmpty {
+  color: var(--colorGrey200);
+  font-size: 1rem;
+}
+
+.reviewContent {
+  font-size: 0.9rem;
+  color: var(--colorGrey700);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ── General review form ───────────────────────────────────────────────────── */
+
+.reviewForm {
+  margin-top: 48px;
+  padding: 32px;
+  background: var(--colorGrey50);
+  border-radius: var(--borderRadiusMedium);
+  border: 1px solid var(--colorGrey100);
+  max-width: 540px;
+}
+
+.reviewFormHeading {
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin: 0 0 20px;
+  color: var(--colorGrey900);
+}
+
+.ratingRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.ratingLabel {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--colorGrey700);
+}
+
+.starPicker {
+  display: flex;
+  gap: 4px;
+}
+
+.starActive,
+.starInactive {
+  font-size: 1.6rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: transform 0.1s;
+}
+
+.starActive {
+  color: #f59e0b;
+}
+
+.starInactive {
+  color: var(--colorGrey200);
+}
+
+.starActive:hover,
+.starInactive:hover {
+  transform: scale(1.1);
+}
+
+.textLabel {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--colorGrey700);
+  margin-bottom: 8px;
+}
+
+.textarea {
+  width: 100%;
+  padding: 12px;
+  font-size: 0.9rem;
+  border: 1px solid var(--colorGrey300);
+  border-radius: var(--borderRadiusMedium);
+  resize: vertical;
+  color: var(--colorGrey900);
+  background: var(--colorWhite);
+  box-sizing: border-box;
+  font-family: inherit;
+  line-height: 1.5;
+
+  &:focus {
+    outline: none;
+    border-color: var(--marketplaceColor);
+    box-shadow: 0 0 0 2px var(--marketplaceColorLight);
+  }
+}
+
+.submitBtn {
+  margin-top: 16px;
+  padding: 12px 32px;
+  background: var(--marketplaceColor);
+  color: var(--colorWhite);
+  border: none;
+  border-radius: var(--borderRadiusMedium);
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+
+  &:hover:not(:disabled) {
+    background: var(--marketplaceColorDark);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+/* ── States ────────────────────────────────────────────────────────────────── */
+
+.loading,
+.empty,
+.loginPrompt {
+  color: var(--colorGrey500);
+  font-size: 0.95rem;
+  padding: 24px 0;
+  text-align: center;
+}
+
+.loginPrompt {
+  font-style: italic;
+}
+
+.successMsg {
+  color: #16a34a;
+  font-weight: 600;
+  padding: 16px 0;
+}
+
+.errorMsg {
+  color: var(--colorFail);
+  font-size: 0.9rem;
+  margin-top: 8px;
+}

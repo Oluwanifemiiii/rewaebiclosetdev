@@ -307,3 +307,54 @@
     }
   }
 }
+
+
+/* ── Community dropdown ─────────────────────────────────────────────────────── */
+
+.communityMenuLabel {
+  composes: topbarLink from global;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  cursor: pointer;
+  color: var(--colorGrey700);
+  font-weight: 600;
+  font-size: 0.9rem;
+  height: 100%;
+  border: none;
+  background: none;
+  transition: color 0.15s;
+
+  &:hover {
+    color: var(--marketplaceColor);
+  }
+}
+
+.communityMenuActive {
+  color: var(--marketplaceColor);
+}
+
+.communityMenuIsOpen {
+  color: var(--marketplaceColor);
+}
+
+.communityMenuContent {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  min-width: 180px;
+  background: var(--colorWhite);
+  border: 1px solid var(--colorGrey100);
+  border-radius: var(--borderRadiusMedium);
+  box-shadow: var(--boxShadowPopup);
+  z-index: 9999;
+  padding: 4px 0;
+}
+
+.dropdownChevron {
+  width: 10px;
+  height: 6px;
+  margin-left: 5px;
+  vertical-align: middle;
+  transition: transform 0.15s;
+}

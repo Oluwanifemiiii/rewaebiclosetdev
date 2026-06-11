@@ -90,4 +90,10 @@ router.get('/auth/google', authenticateGoogle);
 // loginWithIdp endpoint in Sharetribe Auth API to authenticate user to the marketplace
 router.get('/auth/google/callback', authenticateGoogleCallback);
 
+// ── Community routes ──────────────────────────────────────────────────────────
+// Fetch all platform reviews (buyer/seller + general) for the Reviews page.
+router.get('/community-reviews', require('./api/community-reviews'));
+// Fetch closed listings for the Ebi Archive page.
+router.get('/closed-listings', require('./api/closed-listings'));
+
 module.exports = router;

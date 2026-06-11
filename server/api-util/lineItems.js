@@ -192,6 +192,37 @@ const getHourQuantityAndLineItems = orderData => {
   return hasSeats ? { units, seats, extraLineItems: [] } : { quantity: units, extraLineItems: [] };
 };
 
+// ============================================================================
+// CAUTION FEE (refundable deposit — rental listings only)
+// ============================================================================
+
+/**
+ * Add a refundable caution fee line item for rental bookings (day / night / hour).
+ * The amount is stored in listing.attributes.publicData.cautionFee as integer subunits.
+ * It is charged to the customer and paid out to the provider; the provider refunds it
+ * manually via Stripe / Paystack dashboard after the item is returned.
+ *
+ * Placed AFTER tax so deposits are not taxed.
+ *
+ * @param {Object} publicData
+ * @param {string} currency
+ * @returns {Array}
+ */
+const getCautionFeeLineItemMaybe = (publicData, currency) => {
+  const { cautionFee, unitType } = publicData || {};
+  const isRental = ['day', 'night', 'hour'].includes(unitType);
+  if (!isRental || !cautionFee || cautionFee <= 0) return [];
+
+  return [
+    {
+      code: 'line-item/caution-fee',
+      unitPrice: new Money(cautionFee, currency),
+      quantity: 1,
+      includeFor: ['customer', 'provider'],
+    },
+  ];
+};
+
 const getDateRangeQuantityAndLineItems = (orderData, code) => {
   const { bookingStart, bookingEnd, bookingDisplayStart, bookingDisplayEnd, seats } = orderData;
   const hasSeats = !!seats;
@@ -365,6 +396,7 @@ exports.transactionLineItems = async (listing, orderData, providerCommission, cu
     ...bookingDeliveryFees,
     ...negotiationDeliveryFees,
     ...taxLineItem,
+    ...getCautionFeeLineItemMaybe(publicData, currency),
     ...getProviderCommissionMaybe(providerCommission, order, currency),
     ...getCustomerCommissionMaybe(customerCommission, order, currency),
   ];

@@ -134,6 +134,25 @@ const TopbarMobileMenu = props => {
 
           <div className={css.customLinksWrapper}>{extraLinks}</div>
 
+        {/* Community section — visible to all users */}
+        <div className={css.communitySection}>
+          <span className={css.communitySectionTitle}>
+            <FormattedMessage id="TopbarMobileMenu.communitySection" />
+          </span>
+          <ul className={css.communityLinks}>
+            <li className={classNames(css.navigationLink, currentPage === 'ReviewsPage' ? css.currentPage : null)}>
+              <NamedLink name="ReviewsPage">
+                <FormattedMessage id="TopbarMobileMenu.reviewsLink" />
+              </NamedLink>
+            </li>
+            <li className={classNames(css.navigationLink, currentPage === 'EbiArchivePage' ? css.currentPage : null)}>
+              <NamedLink name="EbiArchivePage">
+                <FormattedMessage id="TopbarMobileMenu.ebiArchiveLink" />
+              </NamedLink>
+            </li>
+          </ul>
+        </div>
+
           <div className={css.spacer} />
         </div>
         <div className={css.footer}>{createListingsLinkMaybe}</div>
@@ -198,6 +217,25 @@ const TopbarMobileMenu = props => {
           </li>
         </ul>
         <ul className={css.customLinksWrapper}>{extraLinks}</ul>
+
+        {/* Community section — visible to all users */}
+        <div className={css.communitySection}>
+        <span className={css.communitySectionTitle}>
+        <FormattedMessage id="TopbarMobileMenu.communitySection" />
+        </span>
+        <ul className={css.communityLinks}>
+        <li className={classNames(css.navigationLink, currentPage === 'ReviewsPage' ? css.currentPage : null)}>
+          <NamedLink name="ReviewsPage">
+            <FormattedMessage id="TopbarMobileMenu.reviewsLink" />
+          </NamedLink>
+        </li>
+        <li className={classNames(css.navigationLink, currentPage === 'EbiArchivePage' ? css.currentPage : null)}>
+          <NamedLink name="EbiArchivePage">
+            <FormattedMessage id="TopbarMobileMenu.ebiArchiveLink" />
+          </NamedLink>
+        </li>
+        </ul>
+        </div>
         <div className={css.spacer} />
       </div>
       <div className={css.footer}>{createListingsLinkMaybe}</div>

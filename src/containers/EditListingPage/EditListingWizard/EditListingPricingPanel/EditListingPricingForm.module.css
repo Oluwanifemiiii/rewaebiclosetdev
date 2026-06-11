@@ -38,3 +38,19 @@
     margin-top: 100px;
   }
 }
+
+
+/* ── Caution fee section ────────────────────────────────────────────────────── */
+
+.cautionFeeSection {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--colorGrey100);
+}
+
+.cautionFeeHelper {
+  margin-top: 6px;
+  font-size: 0.8rem;
+  color: var(--colorGrey500);
+  line-height: 1.4;
+}

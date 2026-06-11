@@ -56,6 +56,50 @@ const InboxLink = ({ notificationCount, inboxTab }) => {
   );
 };
 
+const CommunityMenu = ({ currentPage, intl }) => {
+  const isReviews = currentPage === 'ReviewsPage';
+  const isArchive = currentPage === 'EbiArchivePage';
+  const isActive = isReviews || isArchive;
+
+  return (
+    <Menu skipFocusOnNavigation={true}>
+      <MenuLabel
+        id="community-menu-label"
+        className={isActive ? `${css.communityMenuLabel} ${css.communityMenuActive}` : css.communityMenuLabel}
+        isOpenClassName={css.communityMenuIsOpen}
+        ariaLabel={intl.formatMessage({ id: 'TopbarDesktop.community.ariaLabel' })}
+      >
+        <span className={css.topbarLinkLabel}>
+          <FormattedMessage id="TopbarDesktop.communityLabel" />
+          <svg className={css.dropdownChevron} viewBox="0 0 10 6" xmlns="http://www.w3.org/2000/svg">
+            <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
+      </MenuLabel>
+      <MenuContent className={css.communityMenuContent}>
+        <MenuItem key="ReviewsPage">
+          <NamedLink
+            className={isReviews ? `${css.menuLink} ${css.currentPage}` : css.menuLink}
+            name="ReviewsPage"
+          >
+            <span className={css.menuItemBorder} />
+            <FormattedMessage id="TopbarDesktop.reviewsLink" />
+          </NamedLink>
+        </MenuItem>
+        <MenuItem key="EbiArchivePage">
+          <NamedLink
+            className={isArchive ? `${css.menuLink} ${css.currentPage}` : css.menuLink}
+            name="EbiArchivePage"
+          >
+            <span className={css.menuItemBorder} />
+            <FormattedMessage id="TopbarDesktop.ebiArchiveLink" />
+          </NamedLink>
+        </MenuItem>
+      </MenuContent>
+    </Menu>
+  );
+};
+
 const ProfileMenu = ({ currentPage, currentUser, onLogout, showManageListingsLink, intl }) => {
   const currentPageClass = page => {
     const isAccountSettingsPage =
@@ -230,6 +274,7 @@ const TopbarDesktop = props => {
         showCreateListingsLink={showCreateListingsLink}
       />
 
+      <CommunityMenu currentPage={currentPage} intl={intl} />
       {inboxLinkMaybe}
       {profileMenuMaybe}
       {signupLinkMaybe}

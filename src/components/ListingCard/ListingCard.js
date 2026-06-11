@@ -284,38 +284,43 @@ export const ListingCard = props => {
   };
 
   return (
-    <NamedLink 
-      className={classes} 
-      name="ListingPage" 
-      params={{ id, slug }}
-      onClick={handleClick} // ✅ Add click handler
-    >
-      <div className={css.wrapper}>
-        {/* ✅ Closed badge */}
-        {isClosed && (
-          <div className={css.closedBadge}>
-            <FormattedMessage id="ListingCard.closed" />
-          </div>
-        )}
+    <div className={css.cardWrapper}>
+      {/*
+        WishlistButton lives OUTSIDE the NamedLink so touch events never
+        bubble up to the anchor and accidentally trigger navigation on mobile.
+        Both elements share the same relative container for z-index stacking.
+      */}
+      <WishlistButton listingId={id} />
 
-        {/* Wishlist heart button */}
-        <WishlistButton listingId={id} />
-        
-        <ListingCardImage
-          renderSizes={renderSizes}
-          title={title}
-          currentListing={currentListing}
-          config={config}
-          setActivePropsMaybe={setActivePropsMaybe}
-          aspectWidth={aspectWidth}
-          aspectHeight={aspectHeight}
-          variantPrefix={variantPrefix}
-          style={cardStyle}
-          showListingImage={showListingImage}
-        />
-      </div>
-      
-      <div className={css.info}>
+      <NamedLink
+        className={classes}
+        name="ListingPage"
+        params={{ id, slug }}
+        onClick={handleClick}
+      >
+        <div className={css.wrapper}>
+          {/* Closed badge */}
+          {isClosed && (
+            <div className={css.closedBadge}>
+              <FormattedMessage id="ListingCard.closed" />
+            </div>
+          )}
+
+          <ListingCardImage
+            renderSizes={renderSizes}
+            title={title}
+            currentListing={currentListing}
+            config={config}
+            setActivePropsMaybe={setActivePropsMaybe}
+            aspectWidth={aspectWidth}
+            aspectHeight={aspectHeight}
+            variantPrefix={variantPrefix}
+            style={cardStyle}
+            showListingImage={showListingImage}
+          />
+        </div>
+
+        <div className={css.info}>
         <PriceMaybe
           price={price}
           publicData={publicData}
@@ -338,8 +343,9 @@ export const ListingCard = props => {
             </div>
           ) : null}
         </div>
-      </div>
-    </NamedLink>
+        </div>
+      </NamedLink>
+    </div>
   );
 };
 

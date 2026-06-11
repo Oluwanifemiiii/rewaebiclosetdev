@@ -1,5 +1,14 @@
 @import '../../styles/customMediaQueries.css';
 
+
+/* Outer wrapper that positions the WishlistButton as a sibling of NamedLink,
+   not a child of it. This fixes the mobile touch-event conflict. */
+.cardWrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
 .root {
   /* Layout */
   display: flex;
@@ -39,6 +48,7 @@
 }
 
 .price {
+  /* stylelint-disable-next-line property-no-unknown */
   composes: textSmall from global;
   /* Layout */
   display: flex;
@@ -86,6 +96,7 @@
 
 .title {
   /* Font */
+  /* stylelint-disable-next-line property-no-unknown */
   composes: textSmall from global;
   font-weight: var(--fontWeightBold);
   color: var(--colorGrey700);
@@ -94,6 +105,7 @@
 
 .authorInfo {
   /* Font */
+  /* stylelint-disable-next-line property-no-unknown */
   composes: marketplaceTinyFontStyles from global;
   font-weight: var(--fontWeightMedium);
   color: var(--colorGrey700);
@@ -148,6 +160,7 @@
   top: 12px;
   left: 12px;
   z-index: 10;
+  pointer-events: all;  /* explicit — survives any parent pointer-events:none */
   background: rgba(0, 0, 0, 0.3);
   border: none;
   border-radius: 50%;

@@ -42,12 +42,20 @@ const getInitialValues = props => {
   // Note: publicData contains priceVariationsEnabled if listing is created with priceVariations enabled.
   const isPriceVariationsInUse = isPriceVariationsEnabled(publicData, listingTypeConfig);
 
+  const cautionFeeAmount = publicData?.cautionFee;
+  const priceCurrency = listing?.attributes?.price?.currency;
+  const cautionFeeInitialValue =
+    cautionFeeAmount != null && priceCurrency
+      ? new Money(cautionFeeAmount, priceCurrency)
+      : null;
+
   return unitType === FIXED || isPriceVariationsInUse
     ? {
         ...getInitialValuesForPriceVariants(props, isPriceVariationsInUse),
         ...getInitialValuesForStartTimeInterval(props),
+        cautionFee: cautionFeeInitialValue,
       }
-    : { price: listing?.attributes?.price };
+    : { price: listing?.attributes?.price, cautionFee: cautionFeeInitialValue };
 };
 
 // This is needed to show the listing's price consistently over XHR calls.
@@ -195,6 +203,7 @@ const EditListingPricingPanel = props => {
                 unitType,
                 listingTypeConfig
               );
+              const { cautionFee } = values;
               updateValues = {
                 ...priceVariantChanges,
                 ...startTimeIntervalChanges,
@@ -202,6 +211,7 @@ const EditListingPricingPanel = props => {
                   priceVariationsEnabled: isPriceVariationsInUse,
                   ...startTimeIntervalChanges.publicData,
                   ...priceVariantChanges.publicData,
+                  cautionFee: cautionFee?.amount ?? 0,
                 },
               };
             } else {
@@ -212,7 +222,15 @@ const EditListingPricingPanel = props => {
                     },
                   }
                 : {};
-              updateValues = { price, ...priceVariationsEnabledMaybe };
+              const { cautionFee } = values;
+              updateValues = {
+                price,
+                ...priceVariationsEnabledMaybe,
+                publicData: {
+                  ...(priceVariationsEnabledMaybe.publicData || {}),
+                  cautionFee: cautionFee?.amount ?? 0,
+                },
+              };
             }
 
             // Save the initialValues to state

@@ -151,3 +151,24 @@ export const createUserWithIdp = body => {
 export const deleteUserAccount = body => {
   return post('/api/delete-account', body);
 };
+
+
+// Fetch community reviews from the local server endpoint.
+// GET /api/community-reviews
+export const fetchCommunityReviews = () => {
+  const url = `${apiBaseUrl()}/api/community-reviews`;
+  return window.fetch(url, { credentials: 'include' }).then(res => {
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  });
+};
+
+// Fetch closed listings (Ebi Archive) from the local server endpoint.
+// GET /api/closed-listings?page=N
+export const fetchClosedListings = (page = 1) => {
+  const url = `${apiBaseUrl()}/api/closed-listings?page=${page}`;
+  return window.fetch(url, { credentials: 'include' }).then(res => {
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  });
+};

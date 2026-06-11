@@ -201,6 +201,23 @@ export const EditListingPricingForm = props => {
             />
           ) : null}
 
+          {isBooking ? (
+            <div className={css.cautionFeeSection}>
+              <FieldCurrencyInput
+                id={`${formId}cautionFee`}
+                name="cautionFee"
+                className={css.input}
+                label={intl.formatMessage({ id: 'EditListingPricingForm.cautionFeeLabel' })}
+                placeholder={intl.formatMessage({ id: 'EditListingPricingForm.cautionFeePlaceholder' })}
+                currencyConfig={appSettings.getCurrencyFormatting(displayCurrency)}
+                validate={cautionFeeValidators}
+              />
+              <p className={css.cautionFeeHelper}>
+                {intl.formatMessage({ id: 'EditListingPricingForm.cautionFeeHelperText' })}
+              </p>
+            </div>
+          ) : null}
+
           <Button
             className={css.submitButton}
             type="submit"
