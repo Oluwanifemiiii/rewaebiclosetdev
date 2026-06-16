@@ -144,6 +144,10 @@ export const EditListingPricingForm = props => {
         intl
       );
 
+      const cautionFeeValidators = validators.required(
+        intl.formatMessage({ id: 'EditListingPricingForm.cautionFeeRequired' })
+      );
+
       const classes = classNames(rootClassName || css.root, className);
       const submitReady = (updated && pristine) || ready;
       const submitInProgress = updateInProgress;

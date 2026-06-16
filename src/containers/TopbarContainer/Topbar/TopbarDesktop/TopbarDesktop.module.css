@@ -351,10 +351,17 @@
   padding: 4px 0;
 }
 
+.communityLabelWrapper {
+  composes: topbarLinkLabel;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
 .dropdownChevron {
   width: 10px;
   height: 6px;
-  margin-left: 5px;
-  vertical-align: middle;
+  flex-shrink: 0;
   transition: transform 0.15s;
 }

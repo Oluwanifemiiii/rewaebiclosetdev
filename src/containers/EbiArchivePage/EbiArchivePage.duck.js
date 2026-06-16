@@ -40,7 +40,15 @@ const ebiArchiveSlice = createSlice({
     });
     builder.addCase(fetchClosedListingsThunk.fulfilled, (state, action) => {
       state.fetchInProgress = false;
-      state.listings = action.payload.listings || [];
+      const newListings = action.payload.listings || [];
+      const page = action.meta.arg?.page || 1;
+      if (page > 1) {
+        // "Load more": append new pages, skipping any listings already present
+        const existingIds = new Set(state.listings.map(l => l.id));
+        state.listings = [...state.listings, ...newListings.filter(l => !existingIds.has(l.id))];
+      } else {
+        state.listings = newListings;
+      }
       state.pagination = action.payload.meta || null;
     });
     builder.addCase(fetchClosedListingsThunk.rejected, (state, action) => {

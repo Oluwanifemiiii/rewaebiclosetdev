@@ -44,6 +44,48 @@ const flattenReviews = (data = [], included = []) => {
   });
 };
 
+// The Integration API has no /reviews/query endpoint, so reviews are collected
+// through transactions.query with the reviews relationship included.
+const fetchTransactionReviews = async integrationSdk => {
+  const reviews = [];
+  const userMap = {};
+  let page = 1;
+  let totalPages = 1;
+  const maxPages = 20;
+
+  while (page <= totalPages && page <= maxPages) {
+    const res = await integrationSdk.transactions.query({
+      include: ['reviews', 'reviews.author', 'reviews.subject'],
+      perPage: 100,
+      page,
+    });
+    (res.data.included || []).forEach(entity => {
+      if (entity.type === 'review') {
+        reviews.push(entity);
+      } else if (entity.type === 'user') {
+        const id = entity.id?.uuid || entity.id;
+        if (id) userMap[id] = entity;
+      }
+    });
+    totalPages = res.data.meta?.totalPages || 1;
+    page += 1;
+  }
+
+  // The same review can appear under several queries — dedupe by id.
+  const seen = new Set();
+  const uniqueReviews = reviews.filter(r => {
+    const id = r.id?.uuid || r.id;
+    if (!id || seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+
+  return flattenReviews(
+    uniqueReviews.filter(r => r.attributes?.state === 'public'),
+    Object.values(userMap)
+  ).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+};
+
 const flattenGeneralReviews = (data = []) =>
   data
     .map(user => {
@@ -69,17 +111,9 @@ module.exports = async (req, res) => {
   // ── 1. Transaction reviews ────────────────────────────────────────────────
   let transactionReviews = [];
   try {
-    const reviewsRes = await integrationSdk.reviews.query({
-      state: 'public',
-      include: ['author', 'subject'],
-      perPage: 100,
-    });
-    transactionReviews = flattenReviews(
-      reviewsRes.data.data,
-      reviewsRes.data.included || []
-    );
+    transactionReviews = await fetchTransactionReviews(integrationSdk);
   } catch (err) {
-    console.error('[community-reviews] reviews.query failed:', err.message);
+    console.error('[community-reviews] transaction reviews fetch failed:', err.message);
     // Non-fatal — return empty array for this section
   }
 
