@@ -9,12 +9,14 @@ module.exports = async (req, res) => {
     console.log('Transition:', transition);
     console.log('Params:', params);
 
-    const { 
-      listingId, 
-      paystackReference, 
-      amount, 
-      bookingStart, 
-      bookingEnd, 
+    const {
+      listingId,
+      paystackReference,
+      amount,
+      bookingStart,
+      bookingEnd,
+      bookingDisplayStart,
+      bookingDisplayEnd,
       unitType,
       listingType,
       transactionProcessAlias,
@@ -38,6 +40,10 @@ module.exports = async (req, res) => {
           cardToken: 'paystack_payment',
           bookingStart,
           bookingEnd,
+          // Customer's actual rental period when start/end carry a shipping
+          // buffer — drives pricing and what the booking displays.
+          ...(bookingDisplayStart ? { bookingDisplayStart } : {}),
+          ...(bookingDisplayEnd ? { bookingDisplayEnd } : {}),
           protectedData: {
             paystack: true,
             paystackReference,

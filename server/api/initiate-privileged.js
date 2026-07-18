@@ -1,6 +1,15 @@
 const sharetribeSdk = require('sharetribe-flex-sdk');
-const { transactionLineItems } = require('../api-util/lineItems');
+const { transactionLineItems, getCautionFeeLineItemMaybe } = require('../api-util/lineItems');
+const {
+  calculateQuantityFromDates,
+  calculateQuantityFromHours,
+} = require('../api-util/lineItemHelpers');
 const { isIntentionToMakeOffer } = require('../api-util/negotiation');
+const {
+  isRentalWithDeposit,
+  createDepositHold,
+  attachTransactionToDeposit,
+} = require('../api-util/rentalDeposit');
 const {
   getSdk,
   getTrustedSdk,
@@ -12,6 +21,12 @@ const {
 const { Money } = sharetribeSdk.types;
 
 const listingPromise = (sdk, id) => sdk.listings.show({ id, include: ['author'] });
+
+const listingIdRaw = bodyParams => {
+  const raw = bodyParams?.params?.listingId;
+  if (!raw) return null;
+  return typeof raw === 'object' && raw.uuid ? raw.uuid : raw;
+};
 
 const getFullOrderData = (orderData, bodyParams, currency) => {
   const { offerInSubunits } = orderData || {};
@@ -94,6 +109,7 @@ module.exports = (req, res) => {
   const sdk = getSdk(req, res);
   let lineItems = null;
   let metadataMaybe = {};
+  let depositHold = null;
 
 
 
@@ -122,26 +138,76 @@ module.exports = (req, res) => {
           const { offerInSubunits } = orderData || {};
           const amount = offerInSubunits || price?.amount || 0;
 
-          // ── Provider commission (same % as Stripe sellers from Console) ──
-          const hasProviderCommission =
-            providerCommission?.percentage != null && providerCommission.percentage > 0;
-          const commissionAmount = hasProviderCommission
-            ? Math.round(amount * (providerCommission.percentage / 100))
-            : 0;
+          // ── Main line item ──
+          // Rentals (day/night/hour) get a real booking line item with the
+          // per-unit price and the booked quantity, NOT a generic
+          // line-item/item. This makes multi-day rentals charge price × days,
+          // and it is what the transaction emails and order breakdowns key on
+          // to render booking dates. Negotiated offers keep line-item/item:
+          // the offer amount is the agreed total.
+          const manualPublicData = listing.attributes.publicData || {};
+          const rentalUnitType = ['day', 'night', 'hour'].includes(manualPublicData.unitType)
+            ? manualPublicData.unitType
+            : null;
+          const {
+            bookingStart,
+            bookingEnd,
+            bookingDisplayStart,
+            bookingDisplayEnd,
+          } = bodyParams?.params || {};
+          // Display dates are the customer's actual rental period; start/end
+          // may include a shipping buffer and must not drive pricing.
+          const pricingStart = bookingDisplayStart || bookingStart;
+          const pricingEnd = bookingDisplayEnd || bookingEnd;
+          const isUnitPricedBooking = !offerInSubunits && rentalUnitType && pricingStart && pricingEnd;
 
-          lineItems = [
-            {
+          let mainLineItem;
+          let orderTotal;
+          if (isUnitPricedBooking) {
+            const code = `line-item/${rentalUnitType}`;
+            const quantity =
+              rentalUnitType === 'hour'
+                ? calculateQuantityFromHours(new Date(pricingStart), new Date(pricingEnd))
+                : calculateQuantityFromDates(new Date(pricingStart), new Date(pricingEnd), code);
+            mainLineItem = {
+              code,
+              unitPrice: new Money(amount, currency),
+              quantity,
+              includeFor: ['customer', 'provider'],
+            };
+            orderTotal = Math.round(amount * quantity);
+          } else {
+            mainLineItem = {
               code: 'line-item/item',
               unitPrice: new Money(amount, currency),
               quantity: 1,
               includeFor: ['customer', 'provider'],
-            },
+            };
+            orderTotal = amount;
+          }
+
+          // ── Provider commission (same % as Stripe sellers from Console) ──
+          // Calculated on the order total (price × quantity), not the deposit.
+          const hasProviderCommission =
+            providerCommission?.percentage != null && providerCommission.percentage > 0;
+
+          // Refundable caution fee for rentals — manual sellers are paid via
+          // Paystack, which has no auth-only hold, so the deposit is a line
+          // item the customer pays upfront. Only added on request-payment
+          // transitions so offers/inquiries don't pick it up.
+          const cautionFeeLineItems = transitionName?.includes('request-payment')
+            ? getCautionFeeLineItemMaybe(listing.attributes.publicData, currency, 'paystack')
+            : [];
+
+          lineItems = [
+            mainLineItem,
+            ...cautionFeeLineItems,
             // Provider commission (negative — deducted from provider payout)
             ...(hasProviderCommission
               ? [
                   {
                     code: 'line-item/provider-commission',
-                    unitPrice: new Money(amount, currency),
+                    unitPrice: new Money(orderTotal, currency),
                     percentage: -providerCommission.percentage,
                     includeFor: ['provider'],
                   },
@@ -174,6 +240,32 @@ module.exports = (req, res) => {
           );
           metadataMaybe = getMetadata(orderData, transitionName);
 
+          // Rental deposit: create a manual-capture PI on the platform account.
+          // Skipped for Paystack (deposit stays a line item there) and for any
+          // non-request-payment transition (e.g. inquiries).
+          const isRequestPaymentTransition =
+            transitionName === 'transition/request-payment' ||
+            transitionName === 'transition/request-payment-after-inquiry';
+          if (
+            paymentGatewayFromParams !== 'paystack' &&
+            isRequestPaymentTransition &&
+            !isSpeculative &&
+            isRentalWithDeposit(listing)
+          ) {
+            try {
+              depositHold = await createDepositHold({
+                listing,
+                currency,
+                listingId: listingIdRaw(bodyParams),
+                customerEmail: bodyParams?.params?.protectedData?.customerEmail,
+              });
+              console.log('[deposit] hold created:', depositHold.depositPaymentIntentId);
+            } catch (err) {
+              console.error('[deposit] failed to create hold:', err.message);
+              throw err;
+            }
+          }
+
           return getTrustedSdk(req);
         });
       }
@@ -194,6 +286,23 @@ module.exports = (req, res) => {
         ? { deliveryAddress: enrichedOrderData.deliveryAddress }
         : {};
 
+      // The client_secret is intentionally NOT stored — protectedData is
+      // visible to the provider too. The customer fetches the secret from
+      // /api/rental-deposit, which authenticates them against the transaction.
+      const depositHoldMaybe = depositHold
+        ? {
+            rentalDeposit: {
+              paymentIntentId: depositHold.depositPaymentIntentId,
+              amountSubunits: depositHold.depositAmountSubunits,
+              currency: depositHold.depositCurrency,
+            },
+          }
+        : {};
+
+      // params.protectedData comes from the browser: never let the caller
+      // set or overwrite the deposit reference.
+      const { rentalDeposit: _injectedDeposit, ...safeProtectedData } = params.protectedData || {};
+
       console.log('📦 deliveryFeeInSubunits in orderData:', orderData?.deliveryFeeInSubunits);
       console.log('📦 deliveryAddress in orderData:', orderData?.deliveryAddress);
       console.log('📦 deliveryAddress in params.protectedData:', params?.protectedData?.deliveryAddress);
@@ -206,7 +315,7 @@ module.exports = (req, res) => {
               ...params,
               listingId: listingIdNormalized,
               protectedData: {
-                ...params.protectedData,
+                ...safeProtectedData,
                 ...deliveryAddressMaybe,
                 lineItems: normalizeLineItems(lineItems),
                 paymentMethod: 'paystack',
@@ -222,8 +331,9 @@ module.exports = (req, res) => {
               listingId: listingIdNormalized,
               lineItems: normalizeLineItems(lineItems),
               protectedData: {
-                ...params.protectedData,
+                ...safeProtectedData,
                 ...deliveryAddressMaybe,
+                ...depositHoldMaybe,
               },
               ...metadataMaybe,
             },
@@ -239,7 +349,27 @@ module.exports = (req, res) => {
       if (isSpeculative) {
         return trustedSdk.transactions.initiateSpeculative(body, queryParams);
       }
-      return trustedSdk.transactions.initiate(body, queryParams);
+      return trustedSdk.transactions.initiate(body, queryParams).then(async apiResponse => {
+        // Bind the deposit PI to the transaction that now references it.
+        // /api/rental-deposit refuses to serve a PI without this binding.
+        if (depositHold) {
+          const txId = apiResponse?.data?.data?.id?.uuid;
+          if (txId) {
+            try {
+              await attachTransactionToDeposit(depositHold.depositPaymentIntentId, txId);
+            } catch (err) {
+              // The transaction exists; don't fail the response. An unbound
+              // deposit can't be confirmed, so the accept gate will block the
+              // booking — fail-safe, but log loudly.
+              console.error(
+                `[deposit] FAILED to bind ${depositHold.depositPaymentIntentId} to tx ${txId}:`,
+                err.message
+              );
+            }
+          }
+        }
+        return apiResponse;
+      });
     })
     .then(apiResponse => {
       const { status, statusText, data } = apiResponse;

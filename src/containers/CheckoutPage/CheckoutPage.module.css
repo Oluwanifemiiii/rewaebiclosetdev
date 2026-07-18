@@ -458,3 +458,38 @@
 .incompatibleCurrency {
   margin-top: 20px;
 }
+
+/* Standalone rental-deposit row, styled like an order-breakdown line —
+   shown when the breakdown itself can't render yet. Kept narrow and centered
+   so it doesn't stretch edge to edge across the card. */
+.depositNotice {
+  max-width: 300px;
+  margin: 12px auto 0 auto;
+  padding: 0 24px;
+
+  @media (--viewportLarge) {
+    padding: 0;
+  }
+}
+
+.depositNoticeRow {
+  composes: marketplaceSmallFontStyles from global;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  color: var(--colorGrey700);
+  margin: 0;
+}
+
+.depositNoticeAmount {
+  font-weight: var(--fontWeightSemiBold);
+  white-space: nowrap;
+}
+
+.depositNoticeText {
+  composes: marketplaceTinyFontStyles from global;
+  color: var(--colorGrey600);
+  text-align: center;
+  margin: 6px 0 0 0;
+}

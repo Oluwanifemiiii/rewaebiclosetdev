@@ -20,6 +20,7 @@ import BreakdownMaybe from './BreakdownMaybe';
 import DetailCardHeadingsMaybe from './DetailCardHeadingsMaybe';
 import DetailCardImage from './DetailCardImage';
 import DeliveryInfoMaybe from './DeliveryInfoMaybe';
+import RentalDepositMaybe from './RentalDepositMaybe';
 import BookingLocationMaybe from './BookingLocationMaybe';
 import FeedSection from './FeedSection';
 import DiminishedActionButtonMaybe from './DiminishedActionButtonMaybe';
@@ -345,6 +346,13 @@ export class TransactionPanelComponent extends Component {
                   className={css.deliveryInfoSection}
                   listing={listing}
                   showBookingLocation={showBookingLocation}
+                />
+                <RentalDepositMaybe
+                  rentalDeposit={protectedData?.rentalDeposit}
+                  transactionId={this.props.transactionId}
+                  isProvider={isProvider}
+                  processState={stateData.processState}
+                  intl={intl}
                 />
               </div>
             ) : null}

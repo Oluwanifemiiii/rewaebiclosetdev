@@ -58,6 +58,7 @@ router.get('/login-as', loginAs);
 router.post('/transaction-line-items', transactionLineItems);
 router.post('/initiate-privileged', initiatePrivileged);
 router.post('/save-delivery-data', require('./api/save-delivery-data'));
+router.post('/rental-deposit', require('./api/rental-deposit'));
 router.post('/transition-privileged', transitionPrivileged);
 router.post('/delete-account', deleteAccount);
 // Add this line with your other routes in apiRouter.js

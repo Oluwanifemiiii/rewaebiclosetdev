@@ -62,8 +62,16 @@ export const queryOwnListings = queryParams => (dispatch, getState, sdk) => {
 // Close Listing //
 ///////////////////
 const closeListingPayloadCreator = (listingId, { extra: sdk, rejectWithValue }) => {
+  // Mark seller-initiated closes in publicData — the API doesn't record who
+  // closed a listing, and the Ebi Archive only shows operator-closed listings.
   return sdk.ownListings
-    .close({ id: listingId }, { expand: true })
+    .update({ id: listingId, publicData: { closedBySeller: true } })
+    .catch(e => {
+      // Non-fatal: still close the listing even if the marker fails.
+      console.error('Could not mark listing as seller-closed:', e?.message || e);
+      return null;
+    })
+    .then(() => sdk.ownListings.close({ id: listingId }, { expand: true }))
     .then(response => response)
     .catch(e => {
       return rejectWithValue(storableError(e));

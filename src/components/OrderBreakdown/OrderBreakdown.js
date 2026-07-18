@@ -31,6 +31,7 @@ import LineItemProviderCommissionRefundMaybe from './LineItemProviderCommissionR
 import LineItemRefundMaybe from './LineItemRefundMaybe';
 import LineItemTotalPrice from './LineItemTotalPrice';
 import LineItemUnknownItemsMaybe from './LineItemUnknownItemsMaybe';
+import LineItemRentalDepositMaybe from './LineItemRentalDepositMaybe';
 
 import css from './OrderBreakdown.module.css';
 
@@ -45,6 +46,7 @@ export const OrderBreakdownComponent = props => {
     currency,
     marketplaceName,
     intl,
+    rentalDeposit,
   } = props;
 
   const isCustomer = userRole === 'customer';
@@ -167,6 +169,13 @@ export const OrderBreakdownComponent = props => {
       />
 
       <LineItemTotalPrice transaction={transaction} isProvider={isProvider} intl={intl} currency={displayCurrency} />
+
+      <LineItemRentalDepositMaybe
+        transaction={transaction}
+        rentalDeposit={rentalDeposit}
+        isProvider={isProvider}
+        intl={intl}
+      />
 
       {hasCommissionLineItem ? (
         <span className={css.feeInfo}>

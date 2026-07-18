@@ -199,24 +199,25 @@ const getHourQuantityAndLineItems = orderData => {
 /**
  * Add a refundable caution fee line item for rental bookings (day / night / hour).
  * The amount is stored in listing.attributes.publicData.cautionFee as integer subunits.
- * It is charged to the customer and paid out to the provider; the provider refunds it
- * manually via Stripe / Paystack dashboard after the item is returned.
+ *
+ * For Stripe payments the deposit is NOT a line item — it is handled as a separate
+ * manual-capture PaymentIntent on the platform account (see server/api/rental-deposit.js).
+ * For Paystack we still add it as a line item because Paystack has no auth-only hold.
  *
  * Placed AFTER tax so deposits are not taxed.
- *
- * @param {Object} publicData
- * @param {string} currency
- * @returns {Array}
  */
-const getCautionFeeLineItemMaybe = (publicData, currency) => {
+const getCautionFeeLineItemMaybe = (publicData, currency, paymentGateway) => {
   const { cautionFee, unitType } = publicData || {};
   const isRental = ['day', 'night', 'hour'].includes(unitType);
-  if (!isRental || !cautionFee || cautionFee <= 0) return [];
+  // Tolerate the fee being stored as a numeric string.
+  const cautionFeeAmount = Math.round(Number(cautionFee));
+  if (!isRental || !Number.isFinite(cautionFeeAmount) || cautionFeeAmount <= 0) return [];
+  if (paymentGateway !== 'paystack') return [];
 
   return [
     {
       code: 'line-item/caution-fee',
-      unitPrice: new Money(cautionFee, currency),
+      unitPrice: new Money(cautionFeeAmount, currency),
       quantity: 1,
       includeFor: ['customer', 'provider'],
     },
@@ -256,6 +257,8 @@ const getDateRangeQuantityAndLineItems = (orderData, code) => {
  * @param {Object} customerCommission
  * @returns {Promise<Array>} lineItems
  */
+exports.getCautionFeeLineItemMaybe = getCautionFeeLineItemMaybe;
+
 exports.transactionLineItems = async (listing, orderData, providerCommission, customerCommission) => {
   // ── Buy-now shortcut (Paystack direct purchase) ──────────────────────────
   if (orderData && orderData.buyNow === true) {
@@ -396,7 +399,7 @@ exports.transactionLineItems = async (listing, orderData, providerCommission, cu
     ...bookingDeliveryFees,
     ...negotiationDeliveryFees,
     ...taxLineItem,
-    ...getCautionFeeLineItemMaybe(publicData, currency),
+    ...getCautionFeeLineItemMaybe(publicData, currency, paymentGateway),
     ...getProviderCommissionMaybe(providerCommission, order, currency),
     ...getCustomerCommissionMaybe(customerCommission, order, currency),
   ];

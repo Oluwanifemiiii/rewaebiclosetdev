@@ -31,6 +31,7 @@ import {
   FieldSelect,
   FieldTextInput,
   H6,
+  NamedLink,
 } from '../../../components';
 
 import EstimatedCustomerBreakdownMaybe from '../EstimatedCustomerBreakdownMaybe';
@@ -739,6 +740,34 @@ export const BookingDatesForm = props => {
                 onPriceVariantChange={onPriceVariantChange(formRenderProps)}
                 disabled={!isPublishedListing}
               />
+            ) : null}
+
+            {isDaily && BUFFER_DAYS > 0 ? (
+              <div className={css.howBookingWorks}>
+                <p className={css.howBookingWorksText}>
+                  <FormattedMessage
+                    id="BookingDatesForm.howBookingWorks"
+                    values={{ bufferDays: BUFFER_DAYS }}
+                  />
+                </p>
+                <p className={css.howBookingWorksLinks}>
+                  <FormattedMessage
+                    id="BookingDatesForm.howBookingWorksLinks"
+                    values={{
+                      howItWorksLink: (
+                        <NamedLink name="CMSPage" params={{ pageId: 'howitworks' }}>
+                          <FormattedMessage id="BookingDatesForm.howItWorksLinkText" />
+                        </NamedLink>
+                      ),
+                      faqLink: (
+                        <NamedLink name="CMSPage" params={{ pageId: 'faq' }}>
+                          <FormattedMessage id="BookingDatesForm.faqLinkText" />
+                        </NamedLink>
+                      ),
+                    }}
+                  />
+                </p>
+              </div>
             ) : null}
 
             <FieldDateRangePicker

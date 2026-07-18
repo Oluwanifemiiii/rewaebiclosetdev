@@ -275,9 +275,83 @@ export const processCheckoutWithPayment = (orderParams, extraPaymentParams) => {
       paymentParams,
     };
 
-    return hasPaymentIntentUserActionsDone
+    const confirmMainPromise = hasPaymentIntentUserActionsDone
       ? Promise.resolve({ transactionId: order?.id, paymentIntent })
       : onConfirmCardPayment(params);
+
+    // If this rental has a deposit hold, confirm that PI too using the same
+    // card that just cleared the main charge. The hold is manual-capture and
+    // stays in `requires_capture` — no money moves until we capture or cancel.
+    //
+    // The client_secret is never stored in the transaction; it is fetched from
+    // /api/rental-deposit, which only serves it to this transaction's customer.
+    // If the hold cannot be secured we fail the checkout: the confirm-payment
+    // transition never runs, so the pending payment expires and is refunded,
+    // and the provider's accept flow independently verifies the hold anyway.
+    const rentalDeposit = order?.attributes?.protectedData?.rentalDeposit;
+    if (!rentalDeposit?.paymentIntentId) {
+      return confirmMainPromise;
+    }
+
+    const depositError = message => {
+      const e = new Error(message);
+      e.code = 'rental-deposit-hold-failed';
+      return e;
+    };
+
+    return confirmMainPromise.then(result => {
+      const mainPI = result?.paymentIntent;
+      const paymentMethodId =
+        (mainPI && (mainPI.payment_method?.id || mainPI.payment_method)) || null;
+
+      // How to pay the deposit hold:
+      // - One-time card: the payment method the main PI consumed is single-use
+      //   (not attached to a Customer) and CANNOT be reused — Stripe rejects it.
+      //   Create a fresh payment method from the still-mounted card element.
+      // - Saved card: reuse the payment method id; it is attached to the
+      //   customer's Stripe Customer (which the server copies onto the PI).
+      const depositPaymentParams =
+        !isPaymentFlowUseSavedCard && card
+          ? { payment_method: { card, billing_details: billingDetails } }
+          : paymentMethodId
+          ? { payment_method: paymentMethodId }
+          : null;
+
+      return fetch('/api/rental-deposit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ transactionId: order?.id?.uuid, action: 'client-secret' }),
+      })
+        .then(response => response.json().then(data => ({ ok: response.ok, data })))
+        .then(({ ok, data }) => {
+          if (ok && data.alreadyHeld) {
+            // Retry after refresh — the hold is already in place.
+            return result;
+          }
+          if (!ok || !data.clientSecret) {
+            console.error('[deposit] could not fetch hold client secret:', data);
+            throw depositError('The security deposit hold could not be started. Please try again.');
+          }
+          if (!depositPaymentParams) {
+            throw depositError(
+              'The security deposit could not be placed on your card. Please retry the payment.'
+            );
+          }
+          return stripe
+            .confirmCardPayment(data.clientSecret, depositPaymentParams)
+            .then(depositResult => {
+              if (depositResult?.error) {
+                console.error('[deposit] hold confirm failed:', depositResult.error.message);
+                throw depositError(
+                  `The security deposit hold was declined: ${depositResult.error.message}`
+                );
+              }
+              console.log('[deposit] hold confirmed:', rentalDeposit.paymentIntentId);
+              return result;
+            });
+        });
+    });
   };
 
   ///////////////////////////////////////////////////

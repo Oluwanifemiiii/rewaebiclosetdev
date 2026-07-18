@@ -8,6 +8,7 @@ import { propTypes } from '../../util/types';
 import { ensureTransaction } from '../../util/data';
 import { createSlug } from '../../util/urlHelpers';
 import { isTransactionInitiateListingNotFoundError } from '../../util/errors';
+import { formatMoney } from '../../util/currency';
 import {
   getProcess,
   isBookingProcessAlias,
@@ -851,6 +852,56 @@ const getPaystackAmountFromListing = (listing, transaction = null) => {
       if (!baseAmountInKobo || baseAmountInKobo <= 0) {
         console.log('No speculated transaction total, falling back to listing price');
         baseAmountInKobo = getPaystackAmountFromListing(listing);
+
+        // The listing price is per unit (day/night/hour) — multiply by the
+        // rental length, using display dates (the customer's actual rental
+        // period) when the booked range includes a shipping buffer.
+        const fallbackPublicData = listing.attributes?.publicData || {};
+        const fallbackUnitType = fallbackPublicData.unitType;
+        const pricingStart =
+          pageData?.orderData?.bookingDates?.displayStart ||
+          pageData?.orderData?.bookingDates?.bookingStart;
+        const pricingEnd =
+          pageData?.orderData?.bookingDates?.displayEnd ||
+          pageData?.orderData?.bookingDates?.bookingEnd;
+        if (
+          baseAmountInKobo > 0 &&
+          ['day', 'night', 'hour'].includes(fallbackUnitType) &&
+          pricingStart &&
+          pricingEnd
+        ) {
+          const msDiff = new Date(pricingEnd) - new Date(pricingStart);
+          const unitMs = fallbackUnitType === 'hour' ? 3600000 : 86400000;
+          const units = Math.max(1, Math.round(msDiff / unitMs));
+          baseAmountInKobo = baseAmountInKobo * units;
+          console.log(`💰 Rental fallback price: ${units} × unit price =`, baseAmountInKobo, 'kobo');
+        }
+      }
+
+      // Rental deposit (caution fee): make sure it is part of the Paystack
+      // charge. The Marketplace API calculates the speculated line items itself
+      // for manual sellers, so the caution fee usually is NOT among them — and
+      // the listing-price fallback never has it. Only skip when the line items
+      // we just summed already contained it.
+      const speculatedLineItems = speculatedTransaction?.attributes?.lineItems || [];
+      const cautionFeeAlreadyIncluded = speculatedLineItems.some(
+        li => li.code === 'line-item/caution-fee' && !li.reversal
+      );
+      const checkoutPublicData = listing.attributes?.publicData || {};
+      const cautionFeeSubunits = Math.round(Number(checkoutPublicData.cautionFee));
+      const isRentalListing = ['day', 'night', 'hour'].includes(checkoutPublicData.unitType);
+      if (
+        !cautionFeeAlreadyIncluded &&
+        baseAmountInKobo > 0 &&
+        isRentalListing &&
+        Number.isFinite(cautionFeeSubunits) &&
+        cautionFeeSubunits > 0
+      ) {
+        const cautionFeeInKobo = isManualSeller
+          ? cautionFeeSubunits // NGN sellers: stored subunits are already kobo
+          : Math.round((cautionFeeSubunits / 100) * USD_TO_NGN_RATE * 100); // USD cents → kobo
+        baseAmountInKobo += cautionFeeInKobo;
+        console.log('💰 Added caution fee to Paystack amount:', cautionFeeInKobo, 'kobo');
       }
 
       if (!baseAmountInKobo || baseAmountInKobo <= 0) {
@@ -886,11 +937,22 @@ const getPaystackAmountFromListing = (listing, transaction = null) => {
       const bookingStart = pageData?.orderData?.bookingDates?.bookingStart;
       const bookingEnd = pageData?.orderData?.bookingDates?.bookingEnd;
 
+      // Display dates = the customer's actual rental period when the booked
+      // range carries a shipping buffer. The server prices from these.
+      const bookingDisplayStart = pageData?.orderData?.bookingDates?.displayStart;
+      const bookingDisplayEnd = pageData?.orderData?.bookingDates?.displayEnd;
+
       const bookingParams =
         isBooking && bookingStart && bookingEnd
           ? {
               bookingStart: bookingStart.toISOString(),
               bookingEnd: bookingEnd.toISOString(),
+              ...(bookingDisplayStart && bookingDisplayEnd
+                ? {
+                    bookingDisplayStart: bookingDisplayStart.toISOString(),
+                    bookingDisplayEnd: bookingDisplayEnd.toISOString(),
+                  }
+                : {}),
               unitType,
               listingType: publicData.listingType,
               transactionProcessAlias,
@@ -1095,6 +1157,45 @@ const getPaystackAmountFromListing = (listing, transaction = null) => {
 
   const txBookingMaybe = tx?.booking?.id ? { booking: tx.booking, timeZone } : {};
 
+  // Rental deposit. For Stripe the deposit is a separate manual-capture hold
+  // (not a line item) — pass it to OrderBreakdown so it renders as a proper
+  // breakdown row. For Paystack (manual sellers) it is a real caution-fee
+  // line item and renders on its own. When the breakdown can't render yet
+  // (e.g. speculation failed), show a standalone breakdown-styled row so the
+  // customer still sees the deposit before paying.
+  const cautionFeeSubunits = Math.round(Number(listingPD.cautionFee));
+  const isRentalUnitType = ['day', 'night', 'hour'].includes(listingPD.unitType);
+  const depositCurrency = isManualSeller ? 'NGN' : listing?.attributes?.price?.currency;
+  const hasRentalDeposit =
+    isRentalUnitType &&
+    Number.isFinite(cautionFeeSubunits) &&
+    cautionFeeSubunits > 0 &&
+    !!depositCurrency;
+  const rentalDepositInfo = hasRentalDeposit
+    ? { amountSubunits: cautionFeeSubunits, currency: depositCurrency }
+    : null;
+  const depositFallbackMaybe = hasRentalDeposit ? (
+    <div className={css.depositNotice}>
+      <div className={css.depositNoticeRow}>
+        <span>
+          <FormattedMessage id="OrderBreakdown.rentalDeposit" />
+        </span>
+        <span className={css.depositNoticeAmount}>
+          {formatMoney(intl, new Money(cautionFeeSubunits, depositCurrency))}
+        </span>
+      </div>
+      <p className={css.depositNoticeText}>
+        <FormattedMessage
+          id={
+            isManualSeller
+              ? 'OrderBreakdown.cautionFeeRefundInfo'
+              : 'OrderBreakdown.rentalDepositCustomerInfo'
+          }
+        />
+      </p>
+    </div>
+  ) : null;
+
   // Show breakdown only when (speculated?) transaction is loaded
   // (i.e. it has an id and lineItems)
 const breakdown =
@@ -1106,8 +1207,11 @@ const breakdown =
       {...txBookingMaybe}
       currency={displayCurrency}  // ✅ NGN for manual sellers!
       marketplaceName={config.marketplaceName}
+      rentalDeposit={isManualSeller ? null : rentalDepositInfo}
     />
-  ) : null;
+  ) : (
+    depositFallbackMaybe
+  );
 
   const totalPrice =
     tx?.attributes?.lineItems?.length > 0 ? getFormattedTotalPrice(tx, intl) : null;

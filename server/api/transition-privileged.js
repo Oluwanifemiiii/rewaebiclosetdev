@@ -1,5 +1,5 @@
 const sharetribeSdk = require('sharetribe-flex-sdk');
-const { transactionLineItems } = require('../api-util/lineItems');
+const { transactionLineItems, getCautionFeeLineItemMaybe } = require('../api-util/lineItems');
 const {
   addOfferToMetadata,
   getAmountFromPreviousOffer,
@@ -16,6 +16,11 @@ const {
   serialize,
   fetchCommission,
 } = require('../api-util/sdk');
+const { isRentalWithDeposit, createDepositHold } = require('../api-util/rentalDeposit');
+const {
+  calculateQuantityFromDates,
+  calculateQuantityFromHours,
+} = require('../api-util/lineItemHelpers');
 
 const { Money } = sharetribeSdk.types;
 
@@ -117,6 +122,7 @@ module.exports = (req, res) => {
   const transitionName = bodyParams.transition;
   let lineItems = null;
   let metadataMaybe = {};
+  let depositHold = null;
 
   Promise.all([transactionPromise(sdk, bodyParams?.id), fetchCommission(sdk)])
     .then(async responses => {
@@ -156,19 +162,71 @@ module.exports = (req, res) => {
     const hasProviderCommission =
       providerCommission?.percentage != null && providerCommission.percentage > 0;
 
-    lineItems = [
-      {
+    // Refundable caution fee for rentals paid via Paystack (no auth-only hold
+    // there, so the deposit is a paid line item). Only on request-payment
+    // transitions — negotiation/offer transitions must not pick it up.
+    const cautionFeeLineItems = transitionName?.includes('request-payment')
+      ? getCautionFeeLineItemMaybe(listing?.attributes?.publicData, currency, 'paystack')
+      : [];
+
+    // Rentals without a negotiated offer use a real booking line item
+    // (line-item/day|night|hour, per-unit price × booked quantity) so emails
+    // and breakdowns render booking dates and multi-day rentals price
+    // correctly. Offers keep line-item/item — the offer is the agreed total.
+    const manualPublicData = listing?.attributes?.publicData || {};
+    const rentalUnitType = ['day', 'night', 'hour'].includes(manualPublicData.unitType)
+      ? manualPublicData.unitType
+      : null;
+    const {
+      bookingStart,
+      bookingEnd,
+      bookingDisplayStart,
+      bookingDisplayEnd,
+    } = bodyParams?.params || {};
+    const pricingStart = bookingDisplayStart || bookingStart;
+    const pricingEnd = bookingDisplayEnd || bookingEnd;
+    const unitAmount = offerInSubunits || listing?.attributes?.price?.amount || 0;
+    const isUnitPricedBooking =
+      !offerInSubunits &&
+      rentalUnitType &&
+      pricingStart &&
+      pricingEnd &&
+      transitionName?.includes('request-payment');
+
+    let mainLineItem;
+    let orderTotal;
+    if (isUnitPricedBooking) {
+      const code = `line-item/${rentalUnitType}`;
+      const quantity =
+        rentalUnitType === 'hour'
+          ? calculateQuantityFromHours(new Date(pricingStart), new Date(pricingEnd))
+          : calculateQuantityFromDates(new Date(pricingStart), new Date(pricingEnd), code);
+      mainLineItem = {
+        code,
+        unitPrice: { amount: unitAmount, currency: currency },
+        quantity,
+        includeFor: ['customer', 'provider'],
+      };
+      orderTotal = Math.round(unitAmount * quantity);
+    } else {
+      mainLineItem = {
         code: 'line-item/item',
-        unitPrice: { amount: offerInSubunits, currency: currency },
+        unitPrice: { amount: unitAmount, currency: currency },
         quantity: 1,
         includeFor: ['customer', 'provider'],
-      },
+      };
+      orderTotal = unitAmount;
+    }
+
+    lineItems = [
+      mainLineItem,
+      ...cautionFeeLineItems,
       // Provider commission (negative — deducted from provider payout)
       ...(hasProviderCommission
         ? [
             {
               code: 'line-item/provider-commission',
-              unitPrice: { amount: offerInSubunits, currency: currency },
+              unitPrice: { amount: orderTotal, currency: currency },
               percentage: -providerCommission.percentage,
               includeFor: ['provider'],
             },
@@ -191,6 +249,31 @@ module.exports = (req, res) => {
 
   metadataMaybe = getUpdatedMetadata(enrichedOrderData, transitionName, existingMetadata);
 
+  // Rental deposit for bookings that start from an inquiry: the checkout for
+  // an existing transaction goes through this endpoint (not initiate-privileged),
+  // so the manual-capture hold has to be created here too.
+  if (
+    !isManualSeller &&
+    paymentGatewayFromParams !== 'paystack' &&
+    transitionName === 'transition/request-payment-after-inquiry' &&
+    !isSpeculative &&
+    isRentalWithDeposit(listing)
+  ) {
+    const existingDeposit = transaction.attributes?.protectedData?.rentalDeposit;
+    if (!existingDeposit?.paymentIntentId) {
+      const txIdRaw = bodyParams?.id;
+      const txId = typeof txIdRaw === 'object' && txIdRaw?.uuid ? txIdRaw.uuid : txIdRaw;
+      depositHold = await createDepositHold({
+        listing,
+        currency,
+        listingId: listing?.id?.uuid,
+        customerEmail: bodyParams?.params?.protectedData?.customerEmail,
+        transactionId: txId,
+      });
+      console.log('[deposit] hold created (after-inquiry):', depositHold.depositPaymentIntentId);
+    }
+  }
+
   return getTrustedSdk(req);
 })
     .then(trustedSdk => {
@@ -207,15 +290,28 @@ module.exports = (req, res) => {
       console.log('📦 [transition-privileged] deliveryAddress (final):', enrichedOrderData?.deliveryAddress);
       console.log('📦 [transition-privileged] restParams.protectedData:', JSON.stringify(restParams.protectedData));
 
+      // Never let the browser set the deposit reference; only the server does.
+      const { rentalDeposit: _injectedDeposit, ...safeProtectedData } = restParams.protectedData || {};
+      const depositHoldMaybe = depositHold
+        ? {
+            rentalDeposit: {
+              paymentIntentId: depositHold.depositPaymentIntentId,
+              amountSubunits: depositHold.depositAmountSubunits,
+              currency: depositHold.depositCurrency,
+            },
+          }
+        : {};
+
       const body = {
         ...bodyParams,
         params: {
           ...restParams,
           lineItems,
           protectedData: {
-            ...restParams.protectedData,
+            ...safeProtectedData,
             ...deliveryAddressMaybe,
             ...deliveryFeeMaybe,
+            ...depositHoldMaybe,
           },
           ...metadataMaybe,
         },

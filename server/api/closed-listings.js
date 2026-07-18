@@ -16,7 +16,7 @@ module.exports = async (req, res) => {
 
     const response = await integrationSdk.listings.query({
       state: 'closed',
-      include: ['author', 'images'],
+      include: ['author', 'images', 'currentStock'],
       'fields.listing': ['title', 'description', 'price', 'publicData', 'state'],
       'fields.user': ['profile.displayName', 'profile.abbreviatedName'],
       'fields.image': [
@@ -37,8 +37,26 @@ module.exports = async (req, res) => {
       if (id) entityMap[id] = e;
     });
 
+    // The archive shows only listings the operator closed from Console —
+    // not listings that were bought or that sellers closed themselves.
+    // - closedBySeller flag: stamped by the app when a seller closes a listing.
+    // - sold-out purchase listings (stock 0): bought items whose sellers
+    //   closed them before the flag existed.
+    const archiveListings = response.data.data.filter(listing => {
+      const publicData = listing.attributes.publicData || {};
+      if (publicData.closedBySeller) return false;
+
+      const isPurchaseType = !['day', 'night', 'hour'].includes(publicData.unitType);
+      const stockRef = listing.relationships?.currentStock?.data;
+      const stockId = stockRef?.id?.uuid || stockRef?.id;
+      const stockEntity = stockId ? entityMap[stockId] : null;
+      const stockQuantity = stockEntity?.attributes?.quantity;
+      const isSoldOut = isPurchaseType && stockQuantity === 0;
+      return !isSoldOut;
+    });
+
     // Flatten each listing into a simple object the component can use directly
-    const listings = response.data.data.map(listing => {
+    const listings = archiveListings.map(listing => {
       const { title, description, price, publicData, state } = listing.attributes;
 
       // Resolve author

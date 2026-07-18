@@ -47,6 +47,26 @@ const LineItemTotalPrice = props => {
     ? transaction.attributes.payoutTotal
     : transaction.attributes.payinTotal;
 
+  // For rental transactions with a refundable deposit, the provider's actual
+  // take-home depends on whether the deposit is refunded to the customer.
+  // - Paystack: the deposit is a caution-fee line item INSIDE the payout, so
+  //   low end = payout − deposit (refunded), high end = payout (kept).
+  // - Stripe: the deposit is a separate hold OUTSIDE the payout, so
+  //   low end = payout (hold released), high end = payout + deposit (claimed).
+  const lineItems = transaction?.attributes?.lineItems || [];
+  const cautionFeeItem = lineItems.find(
+    li => li.code === 'line-item/caution-fee' && li.includeFor?.includes('provider') && !li.reversal
+  );
+  const stripeDeposit = transaction?.attributes?.protectedData?.rentalDeposit;
+  const depositAmount = cautionFeeItem
+    ? cautionFeeItem.lineTotal?.amount
+    : Math.round(Number(stripeDeposit?.amountSubunits)) || null;
+  const depositCurrency = cautionFeeItem
+    ? cautionFeeItem.lineTotal?.currency
+    : stripeDeposit?.currency;
+  const showProviderRange =
+    isProvider && !isCompleted && !isRefunded && depositAmount > 0 && totalPrice;
+
   // ✅ If currency override is provided (e.g. NGN for manual sellers),
   // use the amount from line items instead of payinTotal/payoutTotal
   // because those are stored in USD by Sharetribe
@@ -87,7 +107,17 @@ const LineItemTotalPrice = props => {
     console.log('==========================================');
   }
 
-  const formattedTotalPrice = formatMoney(intl, displayPrice);
+  let formattedTotalPrice = formatMoney(intl, displayPrice);
+
+  if (showProviderRange && displayPrice.currency === depositCurrency) {
+    const lowAmount = cautionFeeItem ? displayPrice.amount - depositAmount : displayPrice.amount;
+    const highAmount = cautionFeeItem ? displayPrice.amount : displayPrice.amount + depositAmount;
+    if (lowAmount > 0 && lowAmount < highAmount) {
+      const low = formatMoney(intl, new Money(lowAmount, displayPrice.currency));
+      const high = formatMoney(intl, new Money(highAmount, displayPrice.currency));
+      formattedTotalPrice = `~${low}–${high}`;
+    }
+  }
 
   return (
     <>
@@ -96,6 +126,11 @@ const LineItemTotalPrice = props => {
         <div className={css.totalLabel}>{totalLabel}</div>
         <div className={css.totalPrice}>{formattedTotalPrice}</div>
       </div>
+      {showProviderRange ? (
+        <div className={css.feeInfo}>
+          <FormattedMessage id="OrderBreakdown.providerCautionFeeRangeHint" />
+        </div>
+      ) : null}
     </>
   );
 };

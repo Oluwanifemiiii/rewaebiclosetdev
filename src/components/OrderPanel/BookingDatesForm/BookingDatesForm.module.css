@@ -123,3 +123,20 @@
     margin-bottom: 1rem;
   }
 }
+
+/* "How booking works" blurb above the date picker */
+.howBookingWorks {
+  margin: 0 0 16px 0;
+}
+
+.howBookingWorksText {
+  composes: marketplaceSmallFontStyles from global;
+  color: var(--colorGrey600);
+  margin: 0;
+}
+
+.howBookingWorksLinks {
+  composes: marketplaceTinyFontStyles from global;
+  color: var(--colorGrey600);
+  margin: 6px 0 0 0;
+}

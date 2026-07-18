@@ -313,6 +313,48 @@ export const fetchTransaction = (id, txRole, config) => dispatch => {
 ////////////////////
 // makeTransition //
 ////////////////////
+
+// Rental deposit hold (Stripe rentals only). The hold is confirmed by the
+// customer's browser at checkout, so before the provider accepts we verify
+// server-side that it is actually in place — otherwise a customer could skip
+// the deposit and still get an accepted booking.
+const rentalDepositApi = (transactionId, action) =>
+  fetch('/api/rental-deposit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ transactionId, action }),
+  }).then(response => response.json().then(data => ({ ok: response.ok, data })));
+
+const ensureRentalDepositHeld = (transaction, transitionName, txId) => {
+  const rentalDeposit = transaction?.attributes?.protectedData?.rentalDeposit;
+  const isAccept = transitionName === 'transition/accept';
+  if (!rentalDeposit?.paymentIntentId || !isAccept) {
+    return Promise.resolve();
+  }
+  return rentalDepositApi(txId?.uuid, 'status').then(({ ok, data }) => {
+    if (!ok || !data.held) {
+      const error = new Error(
+        'The refundable security deposit has not been secured on the customer’s card, so this booking cannot be accepted. Ask the customer to retry their payment, or decline the request.'
+      );
+      error.name = 'RentalDepositNotHeldError';
+      throw error;
+    }
+  });
+};
+
+const releaseRentalDepositMaybe = (transaction, transitionName, txId) => {
+  const rentalDeposit = transaction?.attributes?.protectedData?.rentalDeposit;
+  const isDecline = transitionName === 'transition/decline';
+  if (!rentalDeposit?.paymentIntentId || !isDecline) {
+    return;
+  }
+  // Best effort — an unreleased hold expires on its own after ~7 days.
+  rentalDepositApi(txId?.uuid, 'release').catch(e =>
+    console.error('[deposit] release after decline failed:', e)
+  );
+};
+
 const makeTransitionPayloadCreator = (
   { txId, transitionName, params },
   { dispatch, rejectWithValue, extra: sdk, getState }
@@ -360,10 +402,12 @@ const makeTransitionPayloadCreator = (
     ? acceptUpdateTransition
     : normalTransition;
 
-  return makeCall()
+  return ensureRentalDepositHeld(transaction, transitionName, txId)
+    .then(makeCall)
     .then(response => {
       dispatch(addMarketplaceEntities(response));
       dispatch(fetchCurrentUserNotifications());
+      releaseRentalDepositMaybe(transaction, transitionName, txId);
 
       // There could be automatic transitions after this transition
       // For example mark-received-from-purchased > auto-complete.
