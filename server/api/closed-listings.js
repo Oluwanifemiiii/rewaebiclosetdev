@@ -15,7 +15,10 @@ module.exports = async (req, res) => {
     const perPage = 24;
 
     const response = await integrationSdk.listings.query({
-      state: 'closed',
+      // NOTE: the Integration API parameter is `states` (plural, array).
+      // A singular `state` param is silently ignored and returns EVERY
+      // listing — published and pending-approval included.
+      states: ['closed'],
       include: ['author', 'images', 'currentStock'],
       'fields.listing': ['title', 'description', 'price', 'publicData', 'state'],
       'fields.user': ['profile.displayName', 'profile.abbreviatedName'],
