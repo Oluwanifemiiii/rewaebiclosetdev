@@ -201,6 +201,25 @@
   white-space: nowrap;
 }
 
+.introSection {
+  text-align: center;
+  padding: 0 0 16px 0;
+}
+
+.introHeading {
+  margin: 0 0 4px 0;
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: var(--fontWeightBold);
+}
+
+.introSubtext {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--colorGrey700);
+}
+
 .mainPanel {
   display: none;
 

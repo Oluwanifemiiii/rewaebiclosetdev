@@ -245,6 +245,12 @@ export class SearchPageComponent extends Component {
     // query parameter ?pub_listingType=[queryParamListingType] is used.
     const { listingType: listingTypePathParam } = currentPathParams;
 
+    // Determine whether the current search is scoped to rental listings, so the intro
+    // heading above the results can show rental-specific copy instead of the default one.
+    const queryListingType = listingTypePathParam || parse(location.search).pub_listingType;
+    const isRentalSearch =
+      typeof queryListingType === 'string' && queryListingType.toLowerCase().includes('rent');
+
     const { listingFields } = config?.listing || {};
     const { defaultFilters: defaultFiltersRaw, sortConfig } = config?.search || {};
 
@@ -464,6 +470,20 @@ export class SearchPageComponent extends Component {
                   );
                 })}
               </SearchFiltersMobile>
+              <div className={css.introSection}>
+                <h2 className={css.introHeading}>
+                  <FormattedMessage
+                    id={
+                      isRentalSearch
+                        ? 'SearchResultsPanel.introHeadingRental'
+                        : 'SearchResultsPanel.introHeading'
+                    }
+                  />
+                </h2>
+                <p className={css.introSubtext}>
+                  <FormattedMessage id="SearchResultsPanel.introSubtext" />
+                </p>
+              </div>
               <MainPanelHeader
                 className={css.mainPanel}
                 sortByComponent={sortBy('desktop')}
