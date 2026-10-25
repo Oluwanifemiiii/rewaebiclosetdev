@@ -104,7 +104,7 @@ const FilterComponent = props => {
       );
     }
     case 'keywords':
-      const label = intl.formatMessage({ id: 'FilterComponent.keywordsLabel' });
+      const label = intl.formatMessage({ id: 'FilterComponent.locationLabel' });
 
       return (
         <KeywordFilter

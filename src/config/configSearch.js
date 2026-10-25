@@ -57,11 +57,13 @@ export const priceFilter = {
   max: 1000,
   step: 5,
 };
-// // This is not in use by default.
-// export const keywordsFilter = {
-//   key: 'keywords',
-//   schemaType: 'keywords',
-// }
+// Shown in the sidebar as the "Location" box (see FilterComponent.keywordsLabel).
+// It uses the keywords param, which also matches the free-text dressLocation
+// listing field (searchable by keyword in Console).
+export const keywordsFilter = {
+  key: 'keywords',
+  schemaType: 'keywords',
+};
 
 export const sortConfig = {
   // Enable/disable the sorting control in the SearchPage

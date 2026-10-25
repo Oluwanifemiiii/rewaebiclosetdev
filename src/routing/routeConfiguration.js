@@ -41,6 +41,7 @@ const TransactionPage = loadable(() => import(/* webpackChunkName: "TransactionP
 const WishlistPage = loadable(() => import(/* webpackChunkName: "WishlistPage" */ '../containers/WishlistPage/WishlistPage'));
 const ReviewsPage = loadable(() => import(/* webpackChunkName: "ReviewsPage" */ '../containers/ReviewsPage/ReviewsPage'));
 const EbiArchivePage = loadable(() => import(/* webpackChunkName: "EbiArchivePage" */ '../containers/EbiArchivePage/EbiArchivePage'));
+const AboutPage = loadable(() => import(/* webpackChunkName: "AboutPage" */ '../containers/AboutPage/AboutPage'));
 const NoAccessPage = loadable(() => import(/* webpackChunkName: "NoAccessPage" */ '../containers/NoAccessPage/NoAccessPage'));
 
 // Styleguide helps you to review current components and develop new ones
@@ -315,6 +316,12 @@ const routeConfiguration = (layoutConfig, accessControlConfig) => {
       authPage: 'LoginPage',
       component: WishlistPage,
       loadData: pageDataLoadingAPI.WishlistPage.loadData,
+    },
+    {
+      path: '/community/about',
+      name: 'AboutPage',
+      auth: false,
+      component: AboutPage,
     },
     {
       path: '/community/reviews',

@@ -86,7 +86,7 @@ class KeywordFilter extends Component {
     const labelForPlain = <span className={labelClass}>{label}</span>;
 
     const filterText = intl.formatMessage({ id: 'KeywordFilter.filterText' });
-    const placeholder = intl.formatMessage({ id: 'KeywordFilter.placeholder' });
+    const placeholder = intl.formatMessage({ id: 'KeywordFilter.locationPlaceholder' });
 
     // pass the initial values with the name key so that
     // they can be passed to the correct field

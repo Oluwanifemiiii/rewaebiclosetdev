@@ -140,6 +140,11 @@ const TopbarMobileMenu = props => {
             <FormattedMessage id="TopbarMobileMenu.communitySection" />
           </span>
           <ul className={css.communityLinks}>
+            <li className={classNames(css.navigationLink, currentPage === 'AboutPage' ? css.currentPage : null)}>
+              <NamedLink name="AboutPage">
+                <FormattedMessage id="TopbarMobileMenu.aboutLink" />
+              </NamedLink>
+            </li>
             <li className={classNames(css.navigationLink, currentPage === 'ReviewsPage' ? css.currentPage : null)}>
               <NamedLink name="ReviewsPage">
                 <FormattedMessage id="TopbarMobileMenu.reviewsLink" />
@@ -224,6 +229,11 @@ const TopbarMobileMenu = props => {
         <FormattedMessage id="TopbarMobileMenu.communitySection" />
         </span>
         <ul className={css.communityLinks}>
+            <li className={classNames(css.navigationLink, currentPage === 'AboutPage' ? css.currentPage : null)}>
+              <NamedLink name="AboutPage">
+                <FormattedMessage id="TopbarMobileMenu.aboutLink" />
+              </NamedLink>
+            </li>
         <li className={classNames(css.navigationLink, currentPage === 'ReviewsPage' ? css.currentPage : null)}>
           <NamedLink name="ReviewsPage">
             <FormattedMessage id="TopbarMobileMenu.reviewsLink" />

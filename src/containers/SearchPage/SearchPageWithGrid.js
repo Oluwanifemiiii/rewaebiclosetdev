@@ -156,7 +156,12 @@ export class SearchPageComponent extends Component {
         // I.e. TopbarSearchForm && search by moving the map.
         // We should always trust urlQueryParams with those.
         // The same applies to keywords, if the main search type is keyword search.
-        const keywordsMaybe = isMainSearchTypeKeywords(config) ? { keywords } : {};
+        // Exception: the sidebar Location box also updates keywords, so an explicit
+        // keywords update from a filter is allowed through.
+        const keywordsMaybe =
+          isMainSearchTypeKeywords(config) && !('keywords' in updatedURLParams)
+            ? { keywords }
+            : {};
         const datesAndSeatsMaybe = getDatesAndSeatsMaybe(mergedQueryParams, updatedURLParams);
         return {
           currentQueryParams: omitLimitedListingFieldParams(
@@ -293,11 +298,11 @@ export class SearchPageComponent extends Component {
     const builtInPrimaryFilters = defaultFiltersConfig.filter(f =>
       ['categoryLevel', 'listingType'].includes(f.key)
     );
-    const builtInFilters = isKeywordSearch
-      ? defaultFiltersConfig.filter(
-          f => !['keywords', 'categoryLevel', 'listingType'].includes(f.key)
-        )
-      : defaultFiltersConfig.filter(f => !['categoryLevel', 'listingType'].includes(f.key));
+    // The keywords filter is kept in the sidebar even when keyword search is the main
+    // search type: it's shown as the "Location" box (it shares the same keywords param).
+    const builtInFilters = defaultFiltersConfig.filter(
+      f => !['categoryLevel', 'listingType'].includes(f.key)
+    );
     const [customPrimaryFilters, customSecondaryFilters] = groupListingFieldConfigs(
       listingFieldsConfig,
       activeListingTypes

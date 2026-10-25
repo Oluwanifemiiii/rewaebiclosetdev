@@ -57,9 +57,10 @@ const InboxLink = ({ notificationCount, inboxTab }) => {
 };
 
 const CommunityMenu = ({ currentPage, intl }) => {
+  const isAbout = currentPage === 'AboutPage';
   const isReviews = currentPage === 'ReviewsPage';
   const isArchive = currentPage === 'EbiArchivePage';
-  const isActive = isReviews || isArchive;
+  const isActive = isAbout || isReviews || isArchive;
 
   return (
     <Menu skipFocusOnNavigation={true}>
@@ -77,6 +78,15 @@ const CommunityMenu = ({ currentPage, intl }) => {
         </span>
       </MenuLabel>
       <MenuContent className={css.communityMenuContent}>
+        <MenuItem key="AboutPage">
+          <NamedLink
+            className={isAbout ? `${css.menuLink} ${css.currentPage}` : css.menuLink}
+            name="AboutPage"
+          >
+            <span className={css.menuItemBorder} />
+            <FormattedMessage id="TopbarDesktop.aboutLink" />
+          </NamedLink>
+        </MenuItem>
         <MenuItem key="ReviewsPage">
           <NamedLink
             className={isReviews ? `${css.menuLink} ${css.currentPage}` : css.menuLink}
