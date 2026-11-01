@@ -172,3 +172,25 @@ export const fetchClosedListings = (page = 1) => {
     return res.json();
   });
 };
+
+// Subscribe an email to the newsletter (Mailchimp, via the local server).
+// POST /api/newsletter-subscribe
+export const subscribeToNewsletter = body => {
+  return window
+    .fetch(`${apiBaseUrl()}/api/newsletter-subscribe`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    .then(res => {
+      if (!res.ok) {
+        return res
+          .json()
+          .catch(() => ({}))
+          .then(data => {
+            throw Object.assign(new Error(), data);
+          });
+      }
+      return res.json();
+    });
+};

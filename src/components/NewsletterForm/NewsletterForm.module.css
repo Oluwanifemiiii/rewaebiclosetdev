@@ -1,0 +1,70 @@
+@import '../../styles/customMediaQueries.css';
+
+.root {
+  width: 100%;
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  @media (--viewportSmall) {
+    flex-direction: row;
+  }
+}
+
+.row.stacked {
+  flex-direction: column;
+}
+
+.row.stacked .button {
+  width: 100%;
+  padding: 0 32px;
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Same primary button as the rest of the site, sized to sit beside the input */
+.button {
+  composes: buttonPrimary from global;
+  width: 100%;
+  white-space: nowrap;
+
+  @media (--viewportSmall) {
+    width: auto;
+    padding: 0 32px;
+  }
+}
+
+.honeypot {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.error {
+  margin: 8px 0 0;
+  color: var(--colorFail);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.success {
+  margin: 0;
+  font-weight: var(--fontWeightSemiBold);
+}

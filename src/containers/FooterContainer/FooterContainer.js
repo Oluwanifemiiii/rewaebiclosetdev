@@ -2,6 +2,11 @@ import React from 'react';
 import { useConfiguration } from '../../context/configurationContext';
 import loadable from '@loadable/component';
 
+import { FormattedMessage } from '../../util/reactIntl';
+import NewsletterForm from '../../components/NewsletterForm/NewsletterForm';
+
+import css from './FooterContainer.module.css';
+
 const SectionBuilder = loadable(
   () => import(/* webpackChunkName: "SectionBuilder" */ '../PageBuilder/PageBuilder'),
   {
@@ -27,7 +32,17 @@ const FooterComponent = () => {
     linkLogoToExternalSite: topbar?.logoLink,
   };
 
-  return <SectionBuilder sections={[footerSection]} />;
+  return (
+    <>
+      <section className={css.newsletter} aria-labelledby="footer-newsletter-title">
+        <h2 id="footer-newsletter-title" className={css.title}>
+          <FormattedMessage id="NewsletterForm.footerTitle" />
+        </h2>
+        <NewsletterForm id="footer-newsletter" source="website-footer" className={css.form} />
+      </section>
+      <SectionBuilder sections={[footerSection]} />
+    </>
+  );
 };
 
 // NOTE: if you want to add dynamic data to FooterComponent,

@@ -1635,5 +1635,20 @@
   "EditListingPricingForm.cautionFeePlaceholder": "Set a refundable caution fee…",
   "EditListingPricingForm.cautionFeeHelperText": "This deposit is collected at checkout and refunded to the renter once the item is returned in good condition.",
   "EditListingPricingForm.cautionFeeRequired": "A caution fee is required for rental listings.",
-  "OrderBreakdown.cautionFee": "Caution fee (refundable)"
+  "OrderBreakdown.cautionFee": "Caution fee (refundable)",
+  "NewsletterForm.emailLabel": "Email address",
+  "NewsletterForm.emailPlaceholder": "Enter your email",
+  "NewsletterForm.subscribe": "Subscribe",
+  "NewsletterForm.subscribing": "Subscribing…",
+  "NewsletterForm.success": "Thank you! Check your inbox to confirm your subscription.",
+  "NewsletterForm.alreadySubscribed": "You’re already on our list — thank you!",
+  "NewsletterForm.cannotResubscribe": "This email can’t be subscribed from here. Please contact us for help.",
+  "NewsletterForm.invalidEmail": "Please enter a valid email address.",
+  "NewsletterForm.error": "Something went wrong. Please try again.",
+  "NewsletterForm.footerTitle": "Join the Exchange",
+  "NewsletterPopup.eyebrow": "The Ebi Closet",
+  "NewsletterPopup.fineprint": "No spam, ever. Unsubscribe anytime.",
+  "NewsletterPopup.title": "Join the Exchange",
+  "NewsletterPopup.text": "Subscribe to our newsletter for new arrivals, style inspiration and updates from The Ebi Closet.",
+  "NewsletterPopup.close": "Close"
 }

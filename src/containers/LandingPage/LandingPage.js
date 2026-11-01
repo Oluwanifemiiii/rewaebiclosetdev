@@ -8,6 +8,7 @@ import { connect } from 'react-redux';
 import { camelize } from '../../util/string';
 import { propTypes } from '../../util/types';
 
+import NewsletterPopup from '../../components/NewsletterPopup/NewsletterPopup';
 import FallbackPage from './FallbackPage';
 import { ASSET_NAME } from './LandingPage.duck';
 
@@ -19,12 +20,15 @@ export const LandingPageComponent = props => {
   const { pageAssetsData, inProgress, error } = props;
 
   return (
-    <PageBuilder
-      pageAssetsData={pageAssetsData?.[camelize(ASSET_NAME)]?.data}
-      inProgress={inProgress}
-      error={error}
-      fallbackPage={<FallbackPage error={error} />}
-    />
+    <>
+      <PageBuilder
+        pageAssetsData={pageAssetsData?.[camelize(ASSET_NAME)]?.data}
+        inProgress={inProgress}
+        error={error}
+        fallbackPage={<FallbackPage error={error} />}
+      />
+      <NewsletterPopup />
+    </>
   );
 };
 
