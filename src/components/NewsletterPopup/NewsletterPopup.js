@@ -98,16 +98,16 @@ const NewsletterPopup = () => {
         aria-modal="true"
         aria-labelledby="newsletter-popup-title"
       >
+        <button type="button" className={css.close} onClick={close}>
+          <span aria-hidden="true">×</span>
+          <span className={css.srOnly}>
+            <FormattedMessage id="NewsletterPopup.close" />
+          </span>
+        </button>
         <div className={css.imageWrapper}>
           <img src={popupImage} alt="" className={css.image} />
         </div>
         <div className={css.content}>
-          <button type="button" className={css.close} onClick={close}>
-            <span aria-hidden="true">×</span>
-            <span className={css.srOnly}>
-              <FormattedMessage id="NewsletterPopup.close" />
-            </span>
-          </button>
           <p className={css.eyebrow}>
             <FormattedMessage id="NewsletterPopup.eyebrow" />
           </p>

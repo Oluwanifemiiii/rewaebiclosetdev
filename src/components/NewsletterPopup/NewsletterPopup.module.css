@@ -15,6 +15,7 @@
 
 /* Photo on top on mobile, beside the content on larger screens */
 .dialog {
+  position: relative;
   display: grid;
   grid-template-columns: 1fr;
   width: 100%;
@@ -35,7 +36,7 @@
 
 .imageWrapper {
   position: relative;
-  height: 200px;
+  height: 168px;
   overflow: hidden;
 
   @media (min-width: 768px) {
@@ -50,7 +51,27 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: top;
+  /* on the narrow banner, frame the headwrap and face rather than the very top */
+  object-position: 50% 14%;
+
+  @media (min-width: 768px) {
+    object-position: top;
+  }
+}
+
+/* soften the photo into the white content area on mobile */
+.imageWrapper::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 48px;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0), var(--colorWhite));
+
+  @media (min-width: 768px) {
+    display: none;
+  }
 }
 
 .content {
@@ -58,7 +79,7 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 32px 24px 28px;
+  padding: 4px 24px 24px;
   text-align: center;
 
   @media (min-width: 768px) {
@@ -68,28 +89,36 @@
 
 .close {
   position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 40px;
-  height: 40px;
-  font-size: 28px;
+  z-index: 1;
+  top: 10px;
+  right: 10px;
+  width: 36px;
+  height: 36px;
+  font-size: 24px;
   line-height: 1;
-  color: var(--colorGrey700);
-  background: none;
+  color: var(--colorGrey900);
+  background-color: rgba(255, 255, 255, 0.9);
   border: none;
   border-radius: 50%;
   cursor: pointer;
   transition: background-color 150ms ease;
 
   &:hover {
-    background-color: var(--colorGrey50);
-    color: var(--colorGrey900);
+    background-color: var(--colorWhite);
+  }
+
+  @media (min-width: 768px) {
+    background: none;
+
+    &:hover {
+      background-color: var(--colorGrey50);
+    }
   }
 }
 
 .eyebrow {
-  margin: 0 0 12px;
-  font-size: 12px;
+  margin: 0 0 8px;
+  font-size: 11px;
   line-height: 16px;
   font-weight: var(--fontWeightSemiBold);
   letter-spacing: 0.2em;
@@ -98,9 +127,9 @@
 }
 
 .title {
-  margin: 0 0 16px;
-  font-size: 32px;
-  line-height: 38px;
+  margin: 0 0 12px;
+  font-size: 28px;
+  line-height: 34px;
   font-weight: var(--fontWeightBold);
   color: var(--colorGrey900);
 
@@ -111,14 +140,21 @@
 }
 
 .text {
-  margin: 0 0 24px;
+  margin: 0 0 20px;
+  font-size: 15px;
   color: var(--colorGrey700);
-  line-height: 1.6;
+  line-height: 1.5;
+
+  @media (min-width: 768px) {
+    margin-bottom: 24px;
+    font-size: 16px;
+    line-height: 1.6;
+  }
 }
 
 .fineprint {
-  margin: 14px 0 0;
-  font-size: 13px;
+  margin: 12px 0 0;
+  font-size: 12px;
   line-height: 18px;
   color: var(--colorGrey700);
 }
