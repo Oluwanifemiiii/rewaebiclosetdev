@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import classNames from 'classnames';
 
 // Import util modules
@@ -22,7 +22,7 @@ import { H3, ListingLink } from '../../../../components';
 
 // Import modules from this directory
 import ErrorMessage from './ErrorMessage';
-import EditListingDetailsForm from './EditListingDetailsForm';
+import EditListingDetailsForm, { isLegacyLocationField } from './EditListingDetailsForm';
 import css from './EditListingDetailsPanel.module.css';
 
 /**
@@ -273,6 +273,27 @@ const getInitialValues = (
 };
 
 /**
+ * Initial value for the Google Places location autocomplete.
+ * - Listings saved with the autocomplete have publicData.location.address + geolocation.
+ * - Older listings only have the free-text dressLocation: we prefill the search text,
+ *   and the seller has to pick a suggestion before saving (so the listing gets a geolocation).
+ */
+const getInitialLocation = (publicData, geolocation) => {
+  const { address, city, state, country } = publicData?.location || {};
+  if (address && geolocation) {
+    // Keep the saved region so re-saving without re-picking doesn't drop it.
+    const region = { city, state, country };
+    return {
+      search: address,
+      predictions: [],
+      selectedPlace: { address, origin: geolocation, region },
+    };
+  }
+  const legacyText = publicData?.dressLocation || publicData?.dresslocation;
+  return legacyText ? { search: legacyText, predictions: [], selectedPlace: null } : undefined;
+};
+
+/**
  * The EditListingDetailsPanel component.
  *
  * @component
@@ -312,7 +333,7 @@ const EditListingDetailsPanel = props => {
   } = props;
 
   const classes = classNames(rootClassName || css.root, className);
-  const { publicData, state } = listing?.attributes || {};
+  const { publicData, state, geolocation } = listing?.attributes || {};
   const listingTypes = config.listing.listingTypes;
   const listingFields = config.listing.listingFields;
   const listingCategories = config.categoryConfiguration.categories;
@@ -341,14 +362,32 @@ const EditListingDetailsPanel = props => {
     }
   }, []);
 
-  const initialValues = getInitialValues(
-    props,
-    existingListingTypeInfo,
-    listingTypes,
-    listingFields,
-    listingCategories,
-    categoryKey
-  );
+  // Memoized so that Final Form doesn't reinitialize (and wipe what the user typed)
+  // on every render: initialValues are compared shallowly.
+  const initialLocation = useMemo(() => getInitialLocation(publicData, geolocation), [
+    publicData?.location?.address,
+    publicData?.location?.state,
+    publicData?.dressLocation,
+    publicData?.dresslocation,
+    geolocation?.lat,
+    geolocation?.lng,
+  ]);
+  // Key of the legacy free-text location field in the Console config (if it's configured).
+  const legacyLocationFieldConfig = listingFields.find(f => isLegacyLocationField(f?.key));
+  const legacyLocationKey = legacyLocationFieldConfig?.key || 'dressLocation';
+  const legacyLocationIsPrivate = legacyLocationFieldConfig?.scope === 'private';
+
+  const initialValues = {
+    ...getInitialValues(
+      props,
+      existingListingTypeInfo,
+      listingTypes,
+      listingFields,
+      listingCategories,
+      categoryKey
+    ),
+    location: initialLocation,
+  };
 
   const noListingTypesSet = listingTypes?.length === 0;
   const hasListingTypesSet = listingTypes?.length > 0;
@@ -392,8 +431,19 @@ const EditListingDetailsPanel = props => {
               listingType,
               transactionProcessAlias,
               unitType,
+              location,
               ...rest
             } = values;
+
+            // Selected Google Places result
+            const address = location?.selectedPlace?.address || null;
+            const origin = location?.selectedPlace?.origin || null;
+            // city / state / country from Google: the search Location filter groups listings by state
+            const { city = null, state: region = null, country = null } =
+              location?.selectedPlace?.region || {};
+            // Keep the legacy free-text field in sync with the selected address,
+            // since checkout/shipping and transaction pages still read it.
+            const legacyLocation = address ? { [legacyLocationKey]: address } : {};
 
             const nestedCategories = pickCategoryFields(rest, categoryKey, 1, listingCategories);
             // Remove old categories by explicitly saving null for them.
@@ -425,8 +475,14 @@ const EditListingDetailsPanel = props => {
                 unitType,
                 ...cleanedNestedCategories,
                 ...publicListingFields,
+                ...(address ? { location: { address, city, state: region, country } } : {}),
+                ...(legacyLocationIsPrivate ? {} : legacyLocation),
               },
-              privateData: privateListingFields,
+              privateData: {
+                ...privateListingFields,
+                ...(legacyLocationIsPrivate ? legacyLocation : {}),
+              },
+              ...(origin ? { geolocation: origin } : {}),
               ...setNoAvailabilityForUnbookableListings(transactionProcessAlias),
             };
 

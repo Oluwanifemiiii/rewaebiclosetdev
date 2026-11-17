@@ -162,6 +162,11 @@ export class SearchPageComponent extends Component {
           isMainSearchTypeKeywords(config) && !('keywords' in updatedURLParams)
             ? { keywords }
             : {};
+        // The sidebar Location filter sets address & bounds explicitly - let those through too.
+        const isLocationUpdate = !!updatedURLParams && 'bounds' in updatedURLParams;
+        const locationParams = isLocationUpdate
+          ? { address: updatedURLParams.address, bounds: updatedURLParams.bounds }
+          : { address, bounds };
         const datesAndSeatsMaybe = getDatesAndSeatsMaybe(mergedQueryParams, updatedURLParams);
         return {
           currentQueryParams: omitLimitedListingFieldParams(
@@ -170,8 +175,7 @@ export class SearchPageComponent extends Component {
               ...updatedURLParams,
               ...keywordsMaybe,
               ...datesAndSeatsMaybe,
-              address,
-              bounds,
+              ...locationParams,
             },
             filterConfigs
           ),

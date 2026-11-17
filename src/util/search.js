@@ -42,6 +42,9 @@ export const getQueryParamNames = (listingFieldsConfig, defaultFiltersConfig) =>
         ? nestedParams?.map(p => constructQueryParamName(p, scope))
         : schemaType === 'listingType'
         ? [constructQueryParamName(key, scope)]
+        : schemaType === 'keywords'
+        ? // The keywords filter is rendered as a Google Places location filter (address + bounds)
+          [key, 'address', 'bounds']
         : [key];
     return [...pickedKeys, ...newKeys];
   }, []);

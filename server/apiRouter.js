@@ -98,4 +98,7 @@ router.get('/community-reviews', require('./api/community-reviews'));
 // Fetch closed listings for the Ebi Archive page.
 router.get('/closed-listings', require('./api/closed-listings'));
 
+// Search page Location filter options, built from where published listings are
+router.get('/location-filter-options', require('./api/location-filter-options'));
+
 module.exports = router;

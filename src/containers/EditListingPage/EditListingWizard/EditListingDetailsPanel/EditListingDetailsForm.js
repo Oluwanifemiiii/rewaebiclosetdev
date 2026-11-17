@@ -11,7 +11,13 @@ import {
   isFieldForListingType,
   isValidCurrencyForTransactionProcess,
 } from '../../../../util/fieldHelpers';
-import { maxLength, required, composeValidators } from '../../../../util/validators';
+import {
+  maxLength,
+  required,
+  composeValidators,
+  autocompleteSearchRequired,
+  autocompletePlaceSelected,
+} from '../../../../util/validators';
 
 // Import shared components
 import {
@@ -19,6 +25,7 @@ import {
   Button,
   FieldSelect,
   FieldTextInput,
+  FieldLocationAutocompleteInput,
   Heading,
   CustomExtendedDataField,
 } from '../../../../components';
@@ -26,6 +33,13 @@ import {
 import css from './EditListingDetailsForm.module.css';
 
 const TITLE_MAX_LENGTH = 60;
+
+const identity = v => v;
+
+// The legacy free-text location field (configured in Console). It's replaced in this form by the
+// Google Places autocomplete below, but its value is still written on submit so that
+// checkout / shipping code that reads publicData.dressLocation keeps working.
+export const isLegacyLocationField = key => (key || '').toLowerCase() === 'dresslocation';
 
 // Show various error messages
 const ErrorMessage = props => {
@@ -254,8 +268,13 @@ const AddListingFields = props => {
     const isProviderScope = ['public', 'private'].includes(scope);
     const isTargetListingType = isFieldForListingType(listingType, fieldConfig);
     const isTargetCategory = isFieldForCategory(targetCategoryIds, fieldConfig);
+    const isReplacedByAutocomplete = isLegacyLocationField(key);
 
-    return isKnownSchemaType && isProviderScope && isTargetListingType && isTargetCategory
+    return isKnownSchemaType &&
+      isProviderScope &&
+      isTargetListingType &&
+      isTargetCategory &&
+      !isReplacedByAutocomplete
       ? [
           ...pickedFields,
           <CustomExtendedDataField
@@ -441,6 +460,33 @@ const EditListingDetailsForm = props => (
                 intl.formatMessage({
                   id: 'EditListingDetailsForm.descriptionRequired',
                 })
+              )}
+            />
+          )}
+
+          {showListingFields && isCompatibleCurrency && (
+            <FieldLocationAutocompleteInput
+              rootClassName={css.locationAddress}
+              inputClassName={css.locationAutocompleteInput}
+              iconClassName={css.locationAutocompleteInputIcon}
+              predictionsClassName={css.predictionsRoot}
+              validClassName={css.validLocation}
+              name="location"
+              id={`${formId}.location`}
+              label={intl.formatMessage({ id: 'EditListingDetailsForm.location' })}
+              placeholder={intl.formatMessage({
+                id: 'EditListingDetailsForm.locationPlaceholder',
+              })}
+              useDefaultPredictions={false}
+              format={identity}
+              valueFromForm={values.location}
+              validate={composeValidators(
+                autocompleteSearchRequired(
+                  intl.formatMessage({ id: 'EditListingDetailsForm.locationRequired' })
+                ),
+                autocompletePlaceSelected(
+                  intl.formatMessage({ id: 'EditListingDetailsForm.locationNotRecognized' })
+                )
               )}
             />
           )}

@@ -57,9 +57,8 @@ export const priceFilter = {
   max: 1000,
   step: 5,
 };
-// Shown in the sidebar as the "Location" box (see FilterComponent.keywordsLabel).
-// It uses the keywords param, which also matches the free-text dressLocation
-// listing field (searchable by keyword in Console).
+// Shown in the sidebar as the "Location" filter (see FilterComponent, schemaType 'keywords').
+// Its options are built from where published listings are: server/api/location-filter-options.js
 export const keywordsFilter = {
   key: 'keywords',
   schemaType: 'keywords',

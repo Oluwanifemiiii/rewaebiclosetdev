@@ -5,6 +5,7 @@ import loadable from '@loadable/component';
 import { FormattedMessage } from '../../util/reactIntl';
 import NewsletterForm from '../../components/NewsletterForm/NewsletterForm';
 
+import footerImage from './newsletter-footer.jpg';
 import css from './FooterContainer.module.css';
 
 const SectionBuilder = loadable(
@@ -35,10 +36,26 @@ const FooterComponent = () => {
   return (
     <>
       <section className={css.newsletter} aria-labelledby="footer-newsletter-title">
-        <h2 id="footer-newsletter-title" className={css.title}>
-          <FormattedMessage id="NewsletterForm.footerTitle" />
-        </h2>
-        <NewsletterForm id="footer-newsletter" source="website-footer" className={css.form} />
+        <div className={css.card}>
+          <div className={css.imageWrapper}>
+            <img src={footerImage} alt="" className={css.image} loading="lazy" />
+          </div>
+          <div className={css.content}>
+            <p className={css.eyebrow}>
+              <FormattedMessage id="NewsletterPopup.eyebrow" />
+            </p>
+            <h2 id="footer-newsletter-title" className={css.title}>
+              <FormattedMessage id="NewsletterForm.footerTitle" />
+            </h2>
+            <p className={css.text}>
+              <FormattedMessage id="NewsletterPopup.text" />
+            </p>
+            <NewsletterForm id="footer-newsletter" source="website-footer" stacked />
+            <p className={css.fineprint}>
+              <FormattedMessage id="NewsletterPopup.fineprint" />
+            </p>
+          </div>
+        </div>
       </section>
       <SectionBuilder sections={[footerSection]} />
     </>

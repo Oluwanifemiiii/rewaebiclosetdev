@@ -8,7 +8,7 @@ import { convertCategoriesToSelectTreeOptions, constructQueryParamName } from '.
 import SelectSingleFilter from './SelectSingleFilter/SelectSingleFilter';
 import SelectMultipleFilter from './SelectMultipleFilter/SelectMultipleFilter';
 import BookingDateRangeFilter from './BookingDateRangeFilter/BookingDateRangeFilter';
-import KeywordFilter from './KeywordFilter/KeywordFilter';
+import LocationFilter from './LocationFilter/LocationFilter';
 import PriceFilter from './PriceFilter/PriceFilter';
 import IntegerRangeFilter from './IntegerRangeFilter/IntegerRangeFilter';
 import SeatsFilter from './SeatsFilter/SeatsFilter';
@@ -106,12 +106,14 @@ const FilterComponent = props => {
     case 'keywords':
       const label = intl.formatMessage({ id: 'FilterComponent.locationLabel' });
 
+      // The sidebar "Location" box: Google Places autocomplete that filters listings by
+      // geolocation (address + bounds params), instead of a free-text keyword match.
       return (
-        <KeywordFilter
+        <LocationFilter
           label={label}
           name={name}
-          queryParamNames={[key]}
-          initialValues={initialValues([key], liveEdit)}
+          queryParamNames={['address', 'bounds']}
+          initialValues={initialValues(['address'], liveEdit)}
           onSubmit={getHandleChangedValueFn(useHistoryPush)}
           getAriaLabel={getAriaLabel}
           {...rest}

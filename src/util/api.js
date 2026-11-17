@@ -173,6 +173,16 @@ export const fetchClosedListings = (page = 1) => {
   });
 };
 
+// Options for the search page Location filter, built from where published listings are.
+// GET /api/location-filter-options
+export const fetchLocationFilterOptions = () => {
+  const url = `${apiBaseUrl()}/api/location-filter-options`;
+  return window.fetch(url, { credentials: 'include' }).then(res => {
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  });
+};
+
 // Subscribe an email to the newsletter (Mailchimp, via the local server).
 // POST /api/newsletter-subscribe
 export const subscribeToNewsletter = body => {

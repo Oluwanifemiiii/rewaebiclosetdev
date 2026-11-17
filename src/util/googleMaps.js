@@ -51,6 +51,17 @@ const placeBounds = place => {
  *   - `origin` (object): The geographic origin of the place (calculated using `placeOrigin`).
  *   - `bounds` (object): The viewport bounds of the place (calculated using `placeBounds`).
  */
+// City / state / country of a place (used to group listings in the search Location filter).
+const placeRegion = place => {
+  const components = place?.addressComponents || [];
+  const pick = type => components.find(c => c.types?.includes(type))?.longText || null;
+  return {
+    city: pick('locality') || pick('postal_town') || pick('administrative_area_level_2'),
+    state: pick('administrative_area_level_1'),
+    country: pick('country'),
+  };
+};
+
 export const getPlaceDetails = async placeId => {
   try {
     const place = await new window.google.maps.places.Place({ id: placeId });
@@ -62,6 +73,7 @@ export const getPlaceDetails = async placeId => {
       address: place.formattedAddress,
       origin: placeOrigin(place),
       bounds: placeBounds(place),
+      region: placeRegion(place),
     };
   } catch (error) {
     if (isDev) {
